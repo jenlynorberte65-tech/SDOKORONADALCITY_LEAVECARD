@@ -40,13 +40,13 @@ export default function TCardPage({ onBack }: Props) {
               empId={emp.id}
               empStatus="Teaching"
               empRecords={emp.records || []}
-             onSaved={async () => {
-  const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
-  if (res.ok) {
-    dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
-  }
-  refresh();
-}}
+            onSaved={async () => {
+            const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
+              if (res.ok) {
+              dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
+                  }
+              refresh();
+            }}
             />
           </div>
         </div>
