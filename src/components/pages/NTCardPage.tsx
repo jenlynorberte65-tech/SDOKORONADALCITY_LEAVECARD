@@ -18,14 +18,16 @@ export default function NTCardPage({ onBack }: Props) {
 
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(async () => {
-    if (!emp) return;
-    const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
-    if (res.ok) {
-      dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
-    }
-    setRefreshKey(k => k + 1);
-  }, [emp, dispatch]);
+ const curId = state.curId;
+
+const refresh = useCallback(async () => {
+  if (!curId) return;
+  const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+  if (res.ok && res.records) {
+    dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
+  }
+  setRefreshKey(k => k + 1);
+}, [curId, dispatch]);
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
 
