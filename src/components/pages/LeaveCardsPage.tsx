@@ -69,7 +69,7 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
         dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...e, records: newRecords, lastEditedAt: new Date().toISOString() } });
 
         const updates = computeRowBalanceUpdates(newRecords, e.id, 'Non-Teaching');
-        for (const u of updates) await apiCall('save_row_balance', u);
+        for (const u of updates) await apiCall('save_row_balance', u as unknown as Record<string, unknown>);
         successCount++;
       } catch (err) {
         errors.push(`${e.surname || e.id}: ${(err as Error).message || 'error'}`);
