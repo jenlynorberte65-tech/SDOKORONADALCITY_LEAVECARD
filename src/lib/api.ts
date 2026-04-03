@@ -33,30 +33,32 @@ export async function apiCall<T = Record<string, unknown>>(
 // ── Leave Classification ─────────────────────────────────────
 export function classifyLeave(act: string): LeaveClassification {
   const a = act.toLowerCase();
+  const isForceDis = (a.includes('force') || a.includes('mandatory')) && a.includes('disapproved');
   return {
-    isAcc:   a.includes('accrual') || a.includes('service credit'),
-    isMon:   a.includes('monetization') && !a.includes('disapproved'),
-    isMD:    a.includes('monetization') && a.includes('disapproved'),
-    isDis:   a.includes('(disapproved)') && !(a.includes('monetization') && a.includes('disapproved')),
-    isSick:  a.includes('sick'),
-    isForce: (a.includes('force') || a.includes('mandatory')) && !a.includes('(disapproved)'),
-    isPer:   a.includes('personal'),
-    isTransfer: a.includes('from denr'),
-    isTerminal: a.includes('terminal'),
+    isAcc:       a.includes('accrual') || a.includes('service credit'),
+    isMon:       a.includes('monetization') && !a.includes('disapproved'),
+    isMD:        a.includes('monetization') && a.includes('disapproved'),
+    isForceDis:  isForceDis,
+    isDis:       a.includes('(disapproved)') && !(a.includes('monetization') && a.includes('disapproved')) && !isForceDis,
+    isSick:      a.includes('sick'),
+    isForce:     (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved'),
+    isPer:       a.includes('personal'),
+    isTransfer:  a.includes('from denr'),
+    isTerminal:  a.includes('terminal'),
     isSetB_noDeduct: a.includes('maternity') || a.includes('paternity'),
     isSetA_noDeduct: a.includes('solo parent') || a.includes('wellness') ||
                      a.includes('special privilege') || a.includes('spl') ||
                      a.includes('rehabilitation') || a.includes('study') ||
                      a.includes('magna carta') || a.includes('vawc') ||
                      a.includes('cto') || a.includes('compensatory'),
-    isVacation: a.includes('vacation') && !a.includes('(disapproved)'),
+    isVacation:  a.includes('vacation') && !a.includes('(disapproved)'),
   };
 }
 
 // ── Calculate weekday count between from/to ──────────────────
 export function calcDays(r: LeaveRecord): number {
   const a = (r.action || '').toLowerCase();
-  const isForceAction = (a.includes('force') || a.includes('mandatory')) && !a.includes('(disapproved)');
+  const isForceAction = (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved');
   if (isForceAction && r.forceAmount > 0) return r.forceAmount;
   if (r.from && r.to) {
     let count = 0;
@@ -165,7 +167,7 @@ export function isEmptyRecord(r: LeaveRecord): boolean {
     && !(r.monV > 0) && !(r.monS > 0);
 }
 
-// ── Compute row balance updates (mirrors ntRow/tRow logic) ───
+// ── Compute row balance updates ──────────────────────────────
 export function computeRowBalanceUpdates(
   records: LeaveRecord[],
   empId: string,
@@ -185,33 +187,35 @@ export function computeRowBalanceUpdates(
       continue;
     }
 
-    const C    = classifyLeave(r.action || '');
-    const days = (!C.isAcc && !C.isTransfer && !C.isDis && !C.isMon && !C.isMD && r.earned === 0)
+    const C = classifyLeave(r.action || '');
+    // isForceDis and isMD/isMon/isAcc/isTransfer handle their own days, exclude from calcDays
+    const days = (!C.isAcc && !C.isTransfer && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD && r.earned === 0)
                  ? calcDays(r) : 0;
 
     let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
     let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
 
     if (curEra === 'Teaching') {
-      if (C.isTransfer)              { rowAEarned = r.trV || 0; bal += rowAEarned; }
+      if (C.isTransfer)                        { rowAEarned = r.trV || 0; bal += rowAEarned; }
       else if (r.earned > 0 && !C.isMon && !C.isPer) { rowAEarned = r.earned; bal += rowAEarned; }
-      else if (C.isMD)               { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
-      else if (C.isMon)              { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
+      else if (C.isMD)                         { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
+      else if (C.isForceDis)                   { const d = calcDays(r); rowAAbsWP = d; bal += d; }
+      else if (C.isMon)                        { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
       else if (days > 0) {
-        if (C.isSick)                { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
-        else if (C.isPer)            { rowAWOP = days; }
-        else if (C.isVacation)       { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
-        else if (C.isForce)          { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
-        else if (C.isTerminal)       { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
-        else if (C.isSetB_noDeduct)  { rowBAbsWP = days; }
-        else                         { rowAAbsWP = days; }
+        if (C.isSick)               { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
+        else if (C.isPer)           { rowAWOP = days; }
+        else if (C.isVacation)      { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
+        else if (C.isForce)         { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
+        else if (C.isTerminal)      { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
+        else if (C.isSetB_noDeduct) { rowBAbsWP = days; }
+        else                        { rowAAbsWP = days; }
       }
       const isE = r.earned > 0;
-      const showBalInSetB = (C.isSick || C.isSetB_noDeduct || C.isTerminal) && !isE && !C.isDis && !C.isMon && !C.isMD;
+      const showBalInSetB = (C.isSick || C.isSetB_noDeduct || C.isTerminal) && !isE && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD;
       if (!r._record_id) continue;
       updates.push({
-        record_id: r._record_id,
-        employee_id: empId,
+        record_id:    r._record_id,
+        employee_id:  empId,
         setA_earned:  +rowAEarned.toFixed(3),
         setA_abs_wp:  +rowAAbsWP.toFixed(3),
         setA_balance: showBalInSetB ? 0 : +bal.toFixed(3),
@@ -227,20 +231,22 @@ export function computeRowBalanceUpdates(
       else if (C.isAcc)      { const v = (r.earned === 0 && !(r.action || '').toLowerCase().includes('service')) ? 1.25 : r.earned; rowAEarned = v; rowBEarned = v; bV += v; bS += v; }
       else if (r.earned > 0) { rowAEarned = r.earned; rowBEarned = r.earned; bV += r.earned; bS += r.earned; }
       else if (C.isMD)       { bV += r.monDV || 0; bS += r.monDS || 0; rowAAbsWP = r.monDV || 0; rowBAbsWP = r.monDS || 0; }
+      // isForceDis: add days back to Set A W/Pay and Set A balance only (bS unchanged)
+      else if (C.isForceDis) { const d = calcDays(r); rowAAbsWP = d; bV += d; }
       else if (C.isMon)      { const mV = r.monV || 0, mS = r.monS || 0; if (bV >= mV) { rowAAbsWP = mV; bV -= mV; } else { rowAAbsWP = bV; rowAWOP = mV - bV; bV = 0; } if (bS >= mS) { rowBAbsWP = mS; bS -= mS; } else { rowBAbsWP = bS; rowBWOP = mS - bS; bS = 0; } }
-      else if (C.isPer && days > 0)      { rowAWOP = days; }
-      else if (C.isVacation && days > 0) { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
-      else if (C.isSick && days > 0)     { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
-      else if (C.isForce && days > 0)    { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
-      else if (C.isTerminal && days > 0) { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
+      else if (C.isPer && days > 0)           { rowAWOP = days; }
+      else if (C.isVacation && days > 0)      { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
+      else if (C.isSick && days > 0)          { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
+      else if (C.isForce && days > 0)         { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
+      else if (C.isTerminal && days > 0)      { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
       else if (C.isSetB_noDeduct && days > 0) { rowBAbsWP = days; }
       else if (C.isSetA_noDeduct && days > 0) { rowAAbsWP = days; }
-      else if (days > 0)                 { rowAAbsWP = days; }
+      else if (days > 0)                      { rowAAbsWP = days; }
 
       if (!r._record_id) continue;
       updates.push({
-        record_id: r._record_id,
-        employee_id: empId,
+        record_id:    r._record_id,
+        employee_id:  empId,
         setA_earned:  +rowAEarned.toFixed(3),
         setA_abs_wp:  +rowAAbsWP.toFixed(3),
         setA_balance: +bV.toFixed(3),
