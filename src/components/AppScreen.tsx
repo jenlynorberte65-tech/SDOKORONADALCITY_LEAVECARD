@@ -15,15 +15,22 @@ export default function AppScreen() {
 
   const isEmployee = state.role === 'employee';
 
-  function handleNavigate(page: string) {
-    dispatch({ type: 'SET_PAGE', payload: page as never });
+  function saveSession(updates: Record<string, unknown>) {
     try {
       const raw = sessionStorage.getItem('deped_session');
-      if (raw) {
-        const s = JSON.parse(raw);
-        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, page }));
-      }
+      const s = raw ? JSON.parse(raw) : {};
+      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, ...updates }));
     } catch { /* ignore */ }
+  }
+
+  function handleNavigate(page: string) {
+    dispatch({ type: 'SET_PAGE', payload: page as never });
+    saveSession({ page });
+  }
+
+  function handleOpenCard(id: string) {
+    dispatch({ type: 'SET_CUR_ID', payload: id });
+    saveSession({ curId: id });
   }
 
   function handleLogout() {
@@ -31,20 +38,8 @@ export default function AppScreen() {
     sessionStorage.removeItem('deped_session');
   }
 
-  function handleOpenCard(id: string) {
-    // Save curId to sessionStorage so refresh restores the correct employee card
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      if (raw) {
-        const s = JSON.parse(raw);
-        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id }));
-      }
-    } catch { /* ignore */ }
-  }
-
   return (
     <div id="s-app" className="screen active">
-      {/* Sidebar — hidden for employee */}
       {!isEmployee && (
         <Sidebar
           open={sidebarOpen}
@@ -54,7 +49,6 @@ export default function AppScreen() {
         />
       )}
 
-      {/* Topbar */}
       <Topbar
         onMenuClick={() => setSidebarOpen(true)}
         showMenu={!isEmployee}
@@ -62,19 +56,19 @@ export default function AppScreen() {
         showLogoutBtn={isEmployee}
       />
 
-      {/* Page content */}
       <div className="ca">
-        {/* Admin/Encoder pages */}
         {(state.isAdmin || state.isEncoder) && (
           <>
             <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
-              <PersonnelListPage onOpenCard={id => {
-                dispatch({ type: 'SET_CUR_ID', payload: id });
-                handleOpenCard(id);
-              }} />
+              <PersonnelListPage onOpenCard={id => { handleOpenCard(id); }} />
             </div>
             <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
-              <LeaveCardsPage />
+              <LeaveCardsPage onOpenCard={id => {
+                handleOpenCard(id);
+                const emp = state.db.find(e => e.id === id);
+                const page = emp?.status === 'Teaching' ? 't' : 'nt';
+                handleNavigate(page);
+              }} />
             </div>
             <div className={`page${state.page === 'nt'    ? ' on' : ''}`}>
               <NTCardPage onBack={() => handleNavigate('cards')} />
@@ -85,14 +79,12 @@ export default function AppScreen() {
           </>
         )}
 
-        {/* School Admin page */}
         {state.isSchoolAdmin && (
           <div className={`page${state.page === 'sa' ? ' on' : ''}`}>
             <SchoolAdminPage />
           </div>
         )}
 
-        {/* Employee read-only view */}
         {isEmployee && (
           <div className={`page${state.page === 'user' ? ' on' : ''}`}>
             <UserPage onLogout={handleLogout} />
@@ -100,7 +92,6 @@ export default function AppScreen() {
         )}
       </div>
 
-      {/* Hidden print/PDF areas */}
       <div id="printPageHeader" />
       <div id="pdfArea" />
     </div>
