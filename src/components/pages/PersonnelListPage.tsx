@@ -25,7 +25,7 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const positions = useMemo(() => [...new Set(active.map(e => (e.pos || '').trim().toUpperCase()).filter(Boolean))].sort(), [active]);
   const schools   = useMemo(() => [...new Set(active.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [active]);
 
-  const monthLabel  = currentMonthLabel();
+  const monthLabel      = currentMonthLabel();
   const updatedCount    = active.filter(e => isUpdatedThisMonth(e.lastEditedAt)).length;
   const notUpdatedCount = active.length - updatedCount;
 
@@ -129,21 +129,22 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
                   <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
                     <td style={{ textAlign: 'center' }}><b style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{e.id}</b></td>
                     <td style={{ textAlign: 'left', fontWeight: 600, paddingLeft: 10 }}>
-                      <button className="btn" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, color: 'var(--cha)', textAlign: 'left', height: 'auto', textTransform: 'none', letterSpacing: 0 }}
-                       onClick={async () => {
-  const page = e.status === 'Teaching' ? 't' : 'nt';
-  dispatch({ type: 'SET_CUR_ID', payload: e.id });
-  dispatch({ type: 'SET_PAGE', payload: page });
-  // Save to sessionStorage so refresh restores the page + employee
-  try {
-    const raw = sessionStorage.getItem('deped_session');
-    if (raw) {
-      const s = JSON.parse(raw);
-      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: e.id, page }));
-    }
-  } catch { /* ignore */ }
-  onOpenCard(e.id);
-}}
+                      <button
+                        className="btn"
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, color: 'var(--cha)', textAlign: 'left', height: 'auto', textTransform: 'none', letterSpacing: 0 }}
+                        onClick={() => {
+                          const page = e.status === 'Teaching' ? 't' : 'nt';
+                          dispatch({ type: 'SET_CUR_ID', payload: e.id });
+                          dispatch({ type: 'SET_PAGE', payload: page });
+                          try {
+                            const raw = sessionStorage.getItem('deped_session');
+                            if (raw) {
+                              const s = JSON.parse(raw);
+                              sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: e.id, page }));
+                            }
+                          } catch { /* ignore */ }
+                          onOpenCard(e.id);
+                        }}>
                         {(e.surname || '').toUpperCase()}, {e.given || ''} {e.suffix || ''}
                       </button>
                     </td>
