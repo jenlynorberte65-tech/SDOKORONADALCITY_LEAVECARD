@@ -1,4 +1,4 @@
-'use client';
+    'use client';
 // ============================================================
 //  NTCardPage — Non-Teaching Personnel Leave Card
 // ============================================================
@@ -48,7 +48,13 @@ export default function NTCardPage({ onBack }: Props) {
               empId={emp.id}
               empStatus="Non-Teaching"
               empRecords={emp.records || []}
-              onSaved={() => { dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, lastEditedAt: new Date().toISOString() } }); refresh(); }}
+             onSaved={async () => {
+            const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
+              if (res.ok) {
+                dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
+              }
+            refresh();
+}}
             />
           </div>
         </div>
