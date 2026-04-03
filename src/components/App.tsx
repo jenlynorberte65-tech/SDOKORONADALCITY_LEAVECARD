@@ -17,12 +17,26 @@ export default function App() {
       if (s.isSchoolAdmin && s.schoolAdminCfg) {
         dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: s.schoolAdminCfg.name, loginId: s.schoolAdminCfg.id, dbId: s.schoolAdminCfg.dbId } });
         loadDB().then(() => dispatch({ type: 'SET_PAGE', payload: 'sa' }));
-      } else if (s.isAdmin) {
-        dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
-        apiCall('get_admin_cfg', {}, 'GET').then(res => {
-          if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
-        });
-       loadDB().then(async () => {
+     } else if (s.isAdmin) {
+  dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
+  apiCall('get_admin_cfg', {}, 'GET').then(res => {
+    if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
+  });
+  loadDB().then(async () => {
+    const restoredPage = s.page || 'list';
+    // If user was on a leave card page, restore curId and load that employee's records
+    if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
+      dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+      try {
+        const recRes = await apiCall('get_records', { employee_id: s.curId }, 'GET');
+        if (recRes.ok && recRes.records) {
+          dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: recRes.records } });
+        }
+      } catch { /* records will be empty but page will still load */ }
+    }
+    dispatch({ type: 'SET_PAGE', payload: restoredPage });
+  });
+}
   const restoredPage = s.page || 'list';
   if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
     dispatch({ type: 'SET_CUR_ID', payload: s.curId });
