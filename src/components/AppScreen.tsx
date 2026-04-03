@@ -57,7 +57,16 @@ export default function AppScreen() {
         {(state.isAdmin || state.isEncoder) && (
           <>
             <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
-              <PersonnelListPage onOpenCard={id => { dispatch({ type: 'SET_CUR_ID', payload: id }); }} />
+              <PersonnelListPage onOpenCard={id => {
+  dispatch({ type: 'SET_CUR_ID', payload: id });
+  try {
+    const raw = sessionStorage.getItem('deped_session');
+    if (raw) {
+      const s = JSON.parse(raw);
+      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id }));
+    }
+  } catch { /* ignore */ }
+}} />
             </div>
             <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
               <LeaveCardsPage onOpenCard={id => {
