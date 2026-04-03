@@ -9,47 +9,42 @@ export default function App() {
   const { state, dispatch } = useAppStore();
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      if (!raw) return;
-      const s = JSON.parse(raw);
+    async function restoreSession() {
+      try {
+        const raw = sessionStorage.getItem('deped_session');
+        if (!raw) return;
+        const s = JSON.parse(raw);
 
-      if (s.isSchoolAdmin && s.schoolAdminCfg) {
-        dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: s.schoolAdminCfg.name, loginId: s.schoolAdminCfg.id, dbId: s.schoolAdminCfg.dbId } });
-        loadDB().then(() => {
+        if (s.isSchoolAdmin && s.schoolAdminCfg) {
+          dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: s.schoolAdminCfg.name, loginId: s.schoolAdminCfg.id, dbId: s.schoolAdminCfg.dbId } });
+          await loadDB();
           dispatch({ type: 'SET_PAGE', payload: 'sa' });
-        });
 
-      } else if (s.isAdmin) {
-        dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
-        apiCall('get_admin_cfg', {}, 'GET').then(res => {
-          if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
-        });
-        loadDB().then(() => {
-          const restoredPage = s.page || 'list';
-          if (s.curId) {
+        } else if (s.isAdmin) {
+          dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
+          apiCall('get_admin_cfg', {}, 'GET').then(res => {
+            if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
+          });
+          await loadDB();
+
+          // Restore page — if on nt/t card, also reload records for that employee
+          const page = s.page || 'list';
+          if ((page === 'nt' || page === 't') && s.curId) {
             dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+            const res = await apiCall('get_records', { employee_id: s.curId }, 'GET');
+            if (res.ok && res.records) {
+              dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: res.records } });
+            }
           }
-          if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
-            // Fetch the employee's leave records then navigate to the card page
-            apiCall('get_records', { employee_id: s.curId }, 'GET').then(recRes => {
-              if (recRes.ok && recRes.records) {
-                dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: recRes.records } });
-              }
-              dispatch({ type: 'SET_PAGE', payload: restoredPage });
-            }).catch(() => {
-              dispatch({ type: 'SET_PAGE', payload: restoredPage });
-            });
-          } else {
-            dispatch({ type: 'SET_PAGE', payload: restoredPage });
-          }
-        });
+          dispatch({ type: 'SET_PAGE', payload: page as never });
 
-      } else if (s.curId) {
-        dispatch({ type: 'LOGIN_EMPLOYEE', payload: { curId: s.curId } });
-        loadDB();
-      }
-    } catch { /* ignore */ }
+        } else if (s.curId) {
+          dispatch({ type: 'LOGIN_EMPLOYEE', payload: { curId: s.curId } });
+          await loadDB();
+        }
+      } catch { /* ignore */ }
+    }
+    restoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
