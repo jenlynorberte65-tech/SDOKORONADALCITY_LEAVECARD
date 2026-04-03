@@ -1,8 +1,8 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
-import { apiCall, fmtD, fmtNum, hz, isEmptyRecord, computeRowBalanceUpdates, sortRecordsByDate } from '@/lib/api';
-import { ProfileBlock, LeaveTableHeader, FwdRow, computeTRow } from '@/components/leavecard/LeaveCardTable';
+import { apiCall, fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
+import { ProfileBlock, LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
 import { LeaveEntryForm } from '@/components/leavecard/LeaveEntryForm';
 import { EraSection } from '@/components/leavecard/EraSection';
 import type { LeaveRecord, Personnel } from '@/types';
@@ -13,17 +13,16 @@ export default function TCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [refreshKey, setRefreshKey] = useState(0);
-
   const curId = state.curId;
 
-const refresh = useCallback(async () => {
-  if (!curId) return;
-  const res = await apiCall('get_records', { employee_id: curId }, 'GET');
-  if (res.ok && res.records) {
-    dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
-  }
-  setRefreshKey(k => k + 1);
-}, [curId, dispatch]);
+  const refresh = useCallback(async () => {
+    if (!curId) return;
+    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (res.ok && res.records) {
+      dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
+    }
+    setRefreshKey(k => k + 1);
+  }, [curId, dispatch]);
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
 
@@ -99,11 +98,10 @@ function TCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: bool
             <tbody>
               {segments.length > 1 && segments[segments.length - 2].conv && (() => {
                 const prevSeg = segments[segments.length - 2];
-                let bal = 0;
-                for (const r of prevSeg.recs) {
-                  if (!r._conversion) { const res = computeTRow(r, bal); bal = res.bal; }
-                }
-                return <FwdRow conv={prevSeg.conv!} bV={bal} bS={bal} status={segments[segments.length - 1].status} />;
+                const lastRec = [...prevSeg.recs].reverse().find(r => !r._conversion);
+                const bV = lastRec?.setA_balance ?? 0;
+                const bS = lastRec?.setB_balance ?? 0;
+                return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
               <SingleTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} />
             </tbody>
@@ -115,17 +113,12 @@ function TCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: bool
 }
 
 function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void }) {
-  const { dispatch } = useAppStore();
   const [editIdx, setEditIdx] = useState<number | null>(null);
-  let bal = 0;
 
   return (
     <>
       {records.map((r, ri) => {
         if (r._conversion) return null;
-        const res = computeTRow(r, bal);
-        bal = res.bal;
-        const { earned, aV, aS, wV, wS, isSetBLeave } = res;
         const { classifyLeave } = require('@/lib/api');
         const C   = classifyLeave(r.action || '');
         const isE = r.earned > 0;
@@ -133,6 +126,16 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: L
         const dd  = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
         const isEmpty = isEmptyRecord(r);
         const idx = startIdx + ri;
+
+        const earned  = r.setA_earned  ?? 0;
+        const aV      = r.setA_abs_wp  ?? 0;
+        const balA    = r.setA_balance ?? 0;
+        const wV      = r.setA_wop     ?? 0;
+        const aS      = r.setB_abs_wp  ?? 0;
+        const balB    = r.setB_balance ?? 0;
+        const wS      = r.setB_wop     ?? 0;
+
+        const isSetBLeave = balA === 0 && balB > 0;
 
         return (
           <>
@@ -142,14 +145,14 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: L
                 {r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}
               </td>
               <td className="nc">
-                {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(r.earned) : ''}
+                {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(earned) : ''}
               </td>
               <td className="nc">{hz(aV)}</td>
-              <td className="bc">{isSetBLeave ? '' : fmtNum(bal)}</td>
+              <td className="bc">{isSetBLeave ? '' : fmtNum(balA)}</td>
               <td className="nc">{hz(wV)}</td>
               <td className="nc">{''}</td>
               <td className="nc">{hz(aS)}</td>
-              <td className="bc">{isSetBLeave ? fmtNum(bal) : ''}</td>
+              <td className="bc">{isSetBLeave ? fmtNum(balB) : ''}</td>
               <td className="nc">{hz(wS)}</td>
               <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
               {isAdmin && (
@@ -186,7 +189,6 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: L
 }
 
 function TRowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
-  const { dispatch } = useAppStore();
   const [open, setOpen] = useState(false);
 
   async function handleDelete() {
