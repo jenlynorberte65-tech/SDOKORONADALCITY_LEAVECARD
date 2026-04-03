@@ -13,7 +13,15 @@ export default function TCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [refreshKey, setRefreshKey] = useState(0);
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
+
+  const refresh = useCallback(async () => {
+    if (!emp) return;
+    const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
+    if (res.ok) {
+      dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
+    }
+    setRefreshKey(k => k + 1);
+  }, [emp, dispatch]);
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
 
@@ -40,13 +48,7 @@ export default function TCardPage({ onBack }: Props) {
               empId={emp.id}
               empStatus="Teaching"
               empRecords={emp.records || []}
-              onSaved={async () => {
-                const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
-                if (res.ok) {
-                  dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
-                }
-                refresh();
-              }}
+              onSaved={refresh}
             />
           </div>
         </div>
@@ -112,7 +114,9 @@ function TCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: bool
 
 function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void }) {
   const { dispatch } = useAppStore();
+  const [editIdx, setEditIdx] = useState<number | null>(null);
   let bal = 0;
+
   return (
     <>
       {records.map((r, ri) => {
@@ -123,37 +127,63 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: L
         const { classifyLeave } = require('@/lib/api');
         const C   = classifyLeave(r.action || '');
         const isE = r.earned > 0;
-        const ac  = C.isDis ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
+        const ac  = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
         const dd  = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
         const isEmpty = isEmptyRecord(r);
         const idx = startIdx + ri;
 
         return (
-          <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
-            <td>{r.so}</td>
-            <td className="period-cell">
-              {r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}
-            </td>
-            <td className="nc">
-              {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(r.earned) : ''}
-            </td>
-            <td className="nc">{hz(aV)}</td>
-            <td className="bc">{isSetBLeave ? '' : fmtNum(bal)}</td>
-            <td className="nc">{hz(wV)}</td>
-            <td className="nc">{''}</td>
-            <td className="nc">{hz(aS)}</td>
-            <td className="bc">{isSetBLeave ? fmtNum(bal) : ''}</td>
-            <td className="nc">{hz(wS)}</td>
-            <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
-            {isAdmin && <TRowMenu record={r} idx={idx} emp={emp} onRefresh={onRefresh} />}
-          </tr>
+          <>
+            <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
+              <td>{r.so}</td>
+              <td className="period-cell">
+                {r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}
+              </td>
+              <td className="nc">
+                {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(r.earned) : ''}
+              </td>
+              <td className="nc">{hz(aV)}</td>
+              <td className="bc">{isSetBLeave ? '' : fmtNum(bal)}</td>
+              <td className="nc">{hz(wV)}</td>
+              <td className="nc">{''}</td>
+              <td className="nc">{hz(aS)}</td>
+              <td className="bc">{isSetBLeave ? fmtNum(bal) : ''}</td>
+              <td className="nc">{hz(wS)}</td>
+              <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
+              {isAdmin && (
+                <TRowMenu
+                  record={r}
+                  idx={idx}
+                  emp={emp}
+                  onRefresh={onRefresh}
+                  onEdit={() => setEditIdx(editIdx === idx ? null : idx)}
+                />
+              )}
+            </tr>
+            {isAdmin && editIdx === idx && (
+              <tr key={`edit-${r._record_id || ri}`}>
+                <td colSpan={12} style={{ padding: 12, background: '#fffbea', borderTop: '2px solid var(--amber, #f59e0b)' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--amber, #b45309)' }}>✏️ Editing Row #{idx + 1}</div>
+                  <LeaveEntryForm
+                    empId={emp.id}
+                    empStatus="Teaching"
+                    empRecords={emp.records || []}
+                    editIdx={idx}
+                    editRecord={r}
+                    onSaved={() => { setEditIdx(null); onRefresh(); }}
+                    onCancelEdit={() => setEditIdx(null)}
+                  />
+                </td>
+              </tr>
+            )}
+          </>
         );
       })}
     </>
   );
 }
 
-function TRowMenu({ record, idx, emp, onRefresh }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void }) {
+function TRowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
   const { dispatch } = useAppStore();
   const [open, setOpen] = useState(false);
 
@@ -163,8 +193,6 @@ function TRowMenu({ record, idx, emp, onRefresh }: { record: LeaveRecord; idx: n
     if (!confirm('Delete this row? This cannot be undone.')) return;
     const res = await apiCall('delete_record', { employee_id: emp.id, record_id: record._record_id });
     if (!res.ok) { alert('Delete failed: ' + (res.error || 'Unknown error')); return; }
-    const newRecords = (emp.records || []).filter((_, i) => i !== idx);
-    dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: newRecords, lastEditedAt: new Date().toISOString() } });
     onRefresh();
   }
 
@@ -174,7 +202,7 @@ function TRowMenu({ record, idx, emp, onRefresh }: { record: LeaveRecord; idx: n
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-            <button onClick={() => setOpen(false)}>✏️ Edit Row</button>
+            <button onClick={() => { setOpen(false); onEdit(); }}>✏️ Edit Row</button>
             <div className="menu-div" />
             <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
