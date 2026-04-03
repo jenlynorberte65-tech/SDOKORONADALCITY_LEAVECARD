@@ -26,6 +26,8 @@ export function normaliseDate(d: string | null | undefined): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
   const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[1]}-${m[2]}`;
+  // Handle ISO timestamp format e.g. 1993-07-07T00:00:00.000Z
+  if (d.includes('T')) return d.split('T')[0];
   return null;
 }
 
