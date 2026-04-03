@@ -22,7 +22,21 @@ export default function App() {
         apiCall('get_admin_cfg', {}, 'GET').then(res => {
           if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
         });
-        loadDB().then(() => dispatch({ type: 'SET_PAGE', payload: s.page || 'list' }));
+       loadDB().then(async () => {
+  const restoredPage = s.page || 'list';
+  if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
+    dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+    try {
+      const recRes = await apiCall('get_records', { employee_id: s.curId }, 'GET');
+      if (recRes.ok && recRes.records) {
+        dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: recRes.records } });
+      }
+    } catch { /* ignore */ }
+  } else if (s.curId) {
+    dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+  }
+  dispatch({ type: 'SET_PAGE', payload: restoredPage });
+});
       } else if (s.curId) {
         dispatch({ type: 'LOGIN_EMPLOYEE', payload: { curId: s.curId } });
         loadDB();
