@@ -40,10 +40,6 @@ export default function TCardPage({ onBack }: Props) {
               empId={emp.id}
               empStatus="Teaching"
               empRecords={emp.records || []}
-            <LeaveEntryForm
-              empId={emp.id}
-              empStatus="Teaching"
-              empRecords={emp.records || []}
               onSaved={async () => {
                 const res = await apiCall('get_records', { employee_id: emp.id }, 'GET');
                 if (res.ok) {
