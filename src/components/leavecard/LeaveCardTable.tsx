@@ -17,18 +17,20 @@ export function computeNTRow(r: LeaveRecord, bV: number, bS: number): NTRowResul
   else if (C.isAcc)      { const v = (r.earned === 0 && !(r.action||'').toLowerCase().includes('service')) ? 1.25 : r.earned; eV = v; eS = v; bV += eV; bS += eS; }
   else if (r.earned > 0) { eV = r.earned; eS = r.earned; bV += eV; bS += eS; }
   let aV = 0, aS = 0, wV = 0, wS = 0;
-  const days = (!C.isAcc && !C.isTransfer && !C.isDis && !C.isMon && !C.isMD && r.earned === 0) ? calcDays(r) : 0;
-  if (C.isDis) { /* no change */ }
-  else if (C.isMD)  { bV += r.monDV||0; bS += r.monDS||0; aV = r.monDV||0; aS = r.monDS||0; }
-  else if (C.isMon) { const mV=r.monV||0,mS=r.monS||0; if(bV>=mV){aV=mV;bV-=mV;}else{aV=Math.max(0,bV);wV=mV-aV;bV=0;} if(bS>=mS){aS=mS;bS-=mS;}else{aS=Math.max(0,bS);wS=mS-aS;bS=0;} }
-  else if (C.isPer&&days>0)      { wV=days; }
-  else if (C.isVacation&&days>0) { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
-  else if (C.isSick&&days>0)     { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
-  else if (C.isForce&&days>0)    { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
-  else if (C.isTerminal&&days>0) { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
-  else if (C.isSetB_noDeduct&&days>0) { aS=days; }
-  else if (C.isSetA_noDeduct&&days>0) { aV=days; }
-  else if (days>0) { aV=days; }
+  const days = (!C.isAcc && !C.isTransfer && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD && r.earned === 0) ? calcDays(r) : 0;
+  if (C.isDis)                         { /* no change */ }
+  // isForceDis: add days back to Set A W/Pay and Set A balance only (bS unchanged)
+  else if (C.isForceDis)               { const d = calcDays(r); aV = d; bV += d; }
+  else if (C.isMD)                     { bV += r.monDV||0; bS += r.monDS||0; aV = r.monDV||0; aS = r.monDS||0; }
+  else if (C.isMon)                    { const mV=r.monV||0,mS=r.monS||0; if(bV>=mV){aV=mV;bV-=mV;}else{aV=Math.max(0,bV);wV=mV-aV;bV=0;} if(bS>=mS){aS=mS;bS-=mS;}else{aS=Math.max(0,bS);wS=mS-aS;bS=0;} }
+  else if (C.isPer&&days>0)            { wV=days; }
+  else if (C.isVacation&&days>0)       { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
+  else if (C.isSick&&days>0)           { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
+  else if (C.isForce&&days>0)          { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
+  else if (C.isTerminal&&days>0)       { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
+  else if (C.isSetB_noDeduct&&days>0)  { aS=days; }
+  else if (C.isSetA_noDeduct&&days>0)  { aV=days; }
+  else if (days>0)                     { aV=days; }
   return { eV, eS, aV, aS, bV, bS, wV, wS };
 }
 
@@ -45,21 +47,23 @@ export function computeTRow(r: LeaveRecord, bal: number): TRowResult {
   if (C.isTransfer)      { bal += r.trV||0; earned = r.trV||0; }
   else if (isE)          { bal += r.earned; earned = r.earned; }
   else if (C.isMD)       { bal += r.monDisAmt||0; aV = r.monDisAmt||0; }
+  // isForceDis: add days back to Set A W/Pay and Set A balance only
+  else if (C.isForceDis) { const d = calcDays(r); aV = d; bal += d; }
   else if (C.isMon)      { const m=r.monAmount||0; if(bal>=m){aV=m;bal-=m;}else{aV=Math.max(0,bal);wV=m-aV;bal=0;} }
   else if (C.isDis)      { /* no change */ }
   else {
     const days = calcDays(r);
     if (days > 0) {
-      if (C.isSick)            { if(bal>=days){aS=days;bal-=days;}else{aS=bal;wS=days-bal;bal=0;} }
-      else if (C.isForce)      { if(bal>=days){aV=days;bal-=days;}else{aV=Math.max(0,bal);wV=days-aV;bal=0;} }
-      else if (C.isTerminal)   { if(bal>=days){aS=days;bal-=days;}else{aS=bal;wS=days-bal;bal=0;} }
-      else if (C.isPer)        { wV=days; }
-      else if (C.isVacation)   { if(bal>=days){aV=days;bal-=days;}else{aV=Math.max(0,bal);wV=days-aV;bal=0;} }
+      if (C.isSick)               { if(bal>=days){aS=days;bal-=days;}else{aS=bal;wS=days-bal;bal=0;} }
+      else if (C.isForce)         { if(bal>=days){aV=days;bal-=days;}else{aV=Math.max(0,bal);wV=days-aV;bal=0;} }
+      else if (C.isTerminal)      { if(bal>=days){aS=days;bal-=days;}else{aS=bal;wS=days-bal;bal=0;} }
+      else if (C.isPer)           { wV=days; }
+      else if (C.isVacation)      { if(bal>=days){aV=days;bal-=days;}else{aV=Math.max(0,bal);wV=days-aV;bal=0;} }
       else if (C.isSetB_noDeduct) { aS=days; }
-      else                     { aV=days; }
+      else                        { aV=days; }
     }
   }
-  const isSetBLeave = (C.isSick||C.isSetB_noDeduct||C.isTerminal) && !isE && !C.isDis && !C.isMon && !C.isMD;
+  const isSetBLeave = (C.isSick||C.isSetB_noDeduct||C.isTerminal) && !isE && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD;
   return { earned, aV, aS, bal, wV, wS, isSetBLeave };
 }
 
