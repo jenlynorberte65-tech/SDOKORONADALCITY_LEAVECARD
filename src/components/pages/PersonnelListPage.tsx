@@ -130,7 +130,20 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
                     <td style={{ textAlign: 'center' }}><b style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{e.id}</b></td>
                     <td style={{ textAlign: 'left', fontWeight: 600, paddingLeft: 10 }}>
                       <button className="btn" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, color: 'var(--cha)', textAlign: 'left', height: 'auto', textTransform: 'none', letterSpacing: 0 }}
-                        onClick={() => { dispatch({ type: 'SET_CUR_ID', payload: e.id }); dispatch({ type: 'SET_PAGE', payload: e.status === 'Teaching' ? 't' : 'nt' }); onOpenCard(e.id); }}>
+                       onClick={async () => {
+  const page = e.status === 'Teaching' ? 't' : 'nt';
+  dispatch({ type: 'SET_CUR_ID', payload: e.id });
+  dispatch({ type: 'SET_PAGE', payload: page });
+  // Save to sessionStorage so refresh restores the page + employee
+  try {
+    const raw = sessionStorage.getItem('deped_session');
+    if (raw) {
+      const s = JSON.parse(raw);
+      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: e.id, page }));
+    }
+  } catch { /* ignore */ }
+  onOpenCard(e.id);
+}}
                         {(e.surname || '').toUpperCase()}, {e.given || ''} {e.suffix || ''}
                       </button>
                     </td>
