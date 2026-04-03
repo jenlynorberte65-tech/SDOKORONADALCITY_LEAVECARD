@@ -46,7 +46,7 @@ export default function TCardPage({ onBack }: Props) {
     dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: res.records || [], lastEditedAt: new Date().toISOString() } });
   }
   refresh();
-}}}
+}}
             />
           </div>
         </div>
