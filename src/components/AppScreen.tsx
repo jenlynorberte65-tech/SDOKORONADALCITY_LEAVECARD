@@ -31,6 +31,17 @@ export default function AppScreen() {
     sessionStorage.removeItem('deped_session');
   }
 
+  function handleOpenCard(id: string) {
+    // Save curId to sessionStorage so refresh restores the correct employee card
+    try {
+      const raw = sessionStorage.getItem('deped_session');
+      if (raw) {
+        const s = JSON.parse(raw);
+        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id }));
+      }
+    } catch { /* ignore */ }
+  }
+
   return (
     <div id="s-app" className="screen active">
       {/* Sidebar — hidden for employee */}
@@ -58,22 +69,12 @@ export default function AppScreen() {
           <>
             <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
               <PersonnelListPage onOpenCard={id => {
-  dispatch({ type: 'SET_CUR_ID', payload: id });
-  try {
-    const raw = sessionStorage.getItem('deped_session');
-    if (raw) {
-      const s = JSON.parse(raw);
-      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id }));
-    }
-  } catch { /* ignore */ }
-}} />
+                dispatch({ type: 'SET_CUR_ID', payload: id });
+                handleOpenCard(id);
+              }} />
             </div>
             <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
-              <LeaveCardsPage onOpenCard={id => {
-              dispatch({ type: 'SET_CUR_ID', payload: id });
-                const emp = state.db.find(e => e.id === id);
-                handleNavigate(emp?.status === 'Teaching' ? 't' : 'nt');
-                }} />
+              <LeaveCardsPage />
             </div>
             <div className={`page${state.page === 'nt'    ? ' on' : ''}`}>
               <NTCardPage onBack={() => handleNavigate('cards')} />
