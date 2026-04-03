@@ -8,7 +8,7 @@ const API_BASE = '/api';
 
 export async function apiCall<T = Record<string, unknown>>(
   action: string,
-  body: Record<string, unknown> = {},
+  body: object = {},
   method: 'GET' | 'POST' = 'POST'
 ): Promise<ApiResponse<T>> {
   try {
