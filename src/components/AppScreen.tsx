@@ -60,7 +60,11 @@ export default function AppScreen() {
               <PersonnelListPage onOpenCard={id => { dispatch({ type: 'SET_CUR_ID', payload: id }); }} />
             </div>
             <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
-              <LeaveCardsPage />
+              <LeaveCardsPage onOpenCard={id => {
+              dispatch({ type: 'SET_CUR_ID', payload: id });
+                const emp = state.db.find(e => e.id === id);
+                handleNavigate(emp?.status === 'Teaching' ? 't' : 'nt');
+                }} />
             </div>
             <div className={`page${state.page === 'nt'    ? ' on' : ''}`}>
               <NTCardPage onBack={() => handleNavigate('cards')} />
