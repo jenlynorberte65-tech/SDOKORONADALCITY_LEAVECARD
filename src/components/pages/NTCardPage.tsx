@@ -4,8 +4,8 @@
 // ============================================================
 import { useState, useCallback } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
-import { apiCall, sortRecordsByDate, fmtD, computeRowBalanceUpdates } from '@/lib/api';
-import { ProfileBlock, LeaveTableHeader, FwdRow, computeNTRow } from '@/components/leavecard/LeaveCardTable';
+import { apiCall, fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
+import { ProfileBlock, LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
 import { LeaveEntryForm } from '@/components/leavecard/LeaveEntryForm';
 import { EraSection } from '@/components/leavecard/EraSection';
 import type { LeaveRecord, Personnel } from '@/types';
@@ -15,19 +15,17 @@ interface Props { onBack: () => void; }
 export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
-
   const [refreshKey, setRefreshKey] = useState(0);
+  const curId = state.curId;
 
- const curId = state.curId;
-
-const refresh = useCallback(async () => {
-  if (!curId) return;
-  const res = await apiCall('get_records', { employee_id: curId }, 'GET');
-  if (res.ok && res.records) {
-    dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
-  }
-  setRefreshKey(k => k + 1);
-}, [curId, dispatch]);
+  const refresh = useCallback(async () => {
+    if (!curId) return;
+    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (res.ok && res.records) {
+      dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
+    }
+    setRefreshKey(k => k + 1);
+  }, [curId, dispatch]);
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
 
@@ -43,13 +41,11 @@ const refresh = useCallback(async () => {
         </div>
       </div>
 
-      {/* Profile card */}
       <div className="card" id="ntCard">
         <div className="ch grn center">📋 Non-Teaching Personnel Leave Record</div>
         <div className="cb"><ProfileBlock e={emp as never} /></div>
       </div>
 
-      {/* Leave entry form */}
       {!isReadOnly && (state.isAdmin || state.isEncoder) && (
         <div className="card no-print" id="ntFrm">
           <div className="ch amber">✏ Leave Entry Form</div>
@@ -64,16 +60,13 @@ const refresh = useCallback(async () => {
         </div>
       )}
 
-      {/* Leave card table with era support */}
       <NTCardTable key={refreshKey} emp={emp} isAdmin={!!(state.isAdmin || state.isEncoder)} onRefresh={refresh} />
     </div>
   );
 }
 
-// ── NT Card Table (with era segmentation) ────────────────────
 function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void }) {
   const records = emp.records || [];
-
   const convIdxs: number[] = [];
   records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
 
@@ -112,10 +105,9 @@ function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boo
             <tbody>
               {segments.length > 1 && segments[segments.length - 2].conv && (() => {
                 const prevSeg = segments[segments.length - 2];
-                let bV = 0, bS = 0;
-                for (const r of prevSeg.recs) {
-                  if (!r._conversion) { const res = computeNTRow(r, bV, bS); bV = res.bV; bS = res.bS; }
-                }
+                const lastRec = [...prevSeg.recs].reverse().find(r => !r._conversion);
+                const bV = lastRec?.setA_balance ?? 0;
+                const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
               <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} />
@@ -128,18 +120,13 @@ function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boo
 }
 
 function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void }) {
-  const { dispatch } = useAppStore();
   const [editIdx, setEditIdx] = useState<number | null>(null);
-  let bV = 0, bS = 0;
 
   return (
     <>
       {records.map((r, ri) => {
         if (r._conversion) return null;
-        const res = computeNTRow(r, bV, bS);
-        bV = res.bV; bS = res.bS;
-        const { eV, eS, aV, aS, wV, wS } = res;
-        const { classifyLeave, isEmptyRecord, hz: hzFn, fmtNum: fmtNumFn } = require('@/lib/api');
+        const { classifyLeave } = require('@/lib/api');
         const C   = classifyLeave(r.action || '');
         const ac  = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
         const dd  = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
@@ -147,21 +134,29 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: 
         const isEmpty = isEmptyRecord(r);
         const idx = startIdx + ri;
 
+        const eV = r.setA_earned  ?? 0;
+        const aV = r.setA_abs_wp  ?? 0;
+        const bV = r.setA_balance ?? 0;
+        const wV = r.setA_wop     ?? 0;
+        const eS = r.setB_earned  ?? 0;
+        const aS = r.setB_abs_wp  ?? 0;
+        const bS = r.setB_balance ?? 0;
+        const wS = r.setB_wop     ?? 0;
+
         return (
           <>
             <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
               <td>{r.so}</td>
               <td className="period-cell" dangerouslySetInnerHTML={{ __html: prd }} />
-              <td className="nc">{hzFn(eV)}</td><td className="nc">{hzFn(aV)}</td>
-              <td className="bc">{fmtNumFn(bV)}</td><td className="nc">{hzFn(wV)}</td>
-              <td className="nc">{hzFn(eS)}</td><td className="nc">{hzFn(aS)}</td>
-              <td className="bc">{fmtNumFn(bS)}</td><td className="nc">{hzFn(wS)}</td>
+              <td className="nc">{hz(eV)}</td><td className="nc">{hz(aV)}</td>
+              <td className="bc">{fmtNum(bV)}</td><td className="nc">{hz(wV)}</td>
+              <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
+              <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
               <td className={`${ac} remarks-cell`}>{r.action}</td>
               {isAdmin && (
                 <RowMenu
                   record={r}
                   idx={idx}
-                  type="nt"
                   emp={emp}
                   onRefresh={onRefresh}
                   onEdit={() => setEditIdx(editIdx === idx ? null : idx)}
@@ -191,8 +186,7 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: 
   );
 }
 
-function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; type: string; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
-  const { dispatch } = useAppStore();
+function RowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
   const [open, setOpen] = useState(false);
 
   async function handleDelete() {
