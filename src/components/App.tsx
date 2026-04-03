@@ -16,7 +16,9 @@ export default function App() {
 
       if (s.isSchoolAdmin && s.schoolAdminCfg) {
         dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: s.schoolAdminCfg.name, loginId: s.schoolAdminCfg.id, dbId: s.schoolAdminCfg.dbId } });
-        loadDB().then(() => dispatch({ type: 'SET_PAGE', payload: 'sa' }));
+        loadDB().then(() => {
+          dispatch({ type: 'SET_PAGE', payload: 'sa' });
+        });
 
       } else if (s.isAdmin) {
         dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
@@ -25,8 +27,11 @@ export default function App() {
         });
         loadDB().then(() => {
           const restoredPage = s.page || 'list';
-          if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
+          if (s.curId) {
             dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+          }
+          if (s.curId && (restoredPage === 'nt' || restoredPage === 't')) {
+            // Fetch the employee's leave records then navigate to the card page
             apiCall('get_records', { employee_id: s.curId }, 'GET').then(recRes => {
               if (recRes.ok && recRes.records) {
                 dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: recRes.records } });
