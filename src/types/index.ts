@@ -116,6 +116,7 @@ export interface LeaveClassification {
   isMon: boolean;
   isMD: boolean;
   isDis: boolean;
+  isForceDis: boolean;
   isSick: boolean;
   isForce: boolean;
   isPer: boolean;
@@ -127,6 +128,7 @@ export interface LeaveClassification {
 }
 
 export interface RowBalanceUpdate {
+  [key: string]: unknown;
   record_id: number;
   employee_id: string;
   setA_earned: number;
