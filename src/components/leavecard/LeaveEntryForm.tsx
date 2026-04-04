@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiCall, toISODate, fmtDateInput, validateLeaveEntry, sortRecordsByDate, computeRowBalanceUpdates } from '@/lib/api';
 import { useAppStore } from '@/hooks/useAppStore';
 import type { LeaveRecord, Personnel } from '@/types';
@@ -55,7 +55,40 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const [trS, setTrS]         = useState(editRecord?.trS ? String(editRecord.trS) : '');
   const [saving, setSaving]   = useState(false);
   const [btnLabel, setBtnLabel] = useState(editIdx > -1 ? '💾 Save Changes' : '💾 Save Entry');
+    function isoToDisplay(iso: string): string {
+    if (!iso) return '';
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : iso;
+  }
 
+  useEffect(() => {
+    if (editRecord) {
+      setSo(editRecord.so || '');
+      setPrd(editRecord.prd || '');
+      setFrText(isoToDisplay(editRecord.from || ''));
+      setToText(isoToDisplay(editRecord.to || ''));
+      setFrPick(editRecord.from || '');
+      setToPick(editRecord.to || '');
+      setAction(editRecord.action || '');
+      setEarned(editRecord.setA_earned ? String(editRecord.setA_earned) : '');
+      setForce(editRecord.forceAmount ? String(editRecord.forceAmount) : '');
+      setMonV(editRecord.monV ? String(editRecord.monV) : '');
+      setMonS(editRecord.monS ? String(editRecord.monS) : '');
+      setMonDV(editRecord.monDV ? String(editRecord.monDV) : '');
+      setMonDS(editRecord.monDS ? String(editRecord.monDS) : '');
+      setMonAmt(editRecord.monAmount ? String(editRecord.monAmount) : '');
+      setMonDis(editRecord.monDisAmt ? String(editRecord.monDisAmt) : '');
+      setTrV(editRecord.trV ? String(editRecord.trV) : '');
+      setTrS(editRecord.trS ? String(editRecord.trS) : '');
+    } else {
+      setSo(''); setPrd(''); setFrText(''); setToText('');
+      setFrPick(''); setToPick(''); setAction(''); setEarned('');
+      setForce(''); setMonV(''); setMonS(''); setMonDV(''); setMonDS('');
+      setMonAmt(''); setMonDis(''); setTrV(''); setTrS('');
+    }
+  }, [editRecord]);
+
+  const al = action.toLowerCase();
   const al = action.toLowerCase();
   const isMon = al.includes('monetization') && !al.includes('disapproved');
   const isMD  = al.includes('monetization') && al.includes('disapproved');
