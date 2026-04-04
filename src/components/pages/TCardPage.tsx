@@ -50,7 +50,6 @@ export default function TCardPage({ onBack }: Props) {
         <div style={{ display: 'flex', gap: 10 }}>
          <button className="btn b-pdf" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>⬇ Download PDF</button>
           <button className="btn b-prn" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>🖨 Print</button>
-        </div>
       </div>
 
       <div className="card" id="tCard">
