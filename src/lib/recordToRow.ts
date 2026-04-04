@@ -56,8 +56,9 @@ export function rowToRecord(row: Record<string, unknown>): LeaveRecord {
   const r: LeaveRecord = {
     so:          String(row.so    ?? ''),
     prd:         String(row.prd   ?? ''),
-    from:        String(row.from_date ?? ''),
-    to:          String(row.to_date   ?? ''),
+    // REPLACE WITH:
+    from:        row.from_date ? (row.from_date instanceof Date ? row.from_date.toISOString().slice(0,10) : String(row.from_date).slice(0,10)) : '',
+    to:          row.to_date   ? (row.to_date   instanceof Date ? row.to_date.toISOString().slice(0,10)   : String(row.to_date).slice(0,10))   : '',
     spec:        String(row.spec  ?? ''),
     action:      String(row.action ?? ''),
     forceAmount: Number(row.force_amount ?? 0),
