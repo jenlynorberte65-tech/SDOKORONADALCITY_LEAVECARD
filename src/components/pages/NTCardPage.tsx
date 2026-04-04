@@ -1,8 +1,5 @@
 'use client';
-// ============================================================
-//  NTCardPage — Non-Teaching Personnel Leave Card
-// ============================================================
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall, fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
 import { ProfileBlock, LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
@@ -16,16 +13,27 @@ export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editIdx, setEditIdx] = useState<number>(-1);
+  const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const curId = state.curId;
+  const formRef = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(async () => {
-    if (!curId) return;
-    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
-    if (res.ok && res.records) {
-      dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
-    }
+  const refresh = useCallback(() => {
     setRefreshKey(k => k + 1);
-  }, [curId, dispatch]);
+  }, []);
+
+  function handleEditRow(idx: number, record: LeaveRecord) {
+    setEditIdx(idx);
+    setEditRecord(record);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+
+  function handleCancelEdit() {
+    setEditIdx(-1);
+    setEditRecord(undefined);
+  }
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
 
@@ -47,25 +55,36 @@ export default function NTCardPage({ onBack }: Props) {
       </div>
 
       {!isReadOnly && (state.isAdmin || state.isEncoder) && (
-        <div className="card no-print" id="ntFrm">
-          <div className="ch amber">✏ Leave Entry Form</div>
+        <div className="card no-print" id="ntFrm" ref={formRef}>
+          <div className="ch amber">
+            {editIdx >= 0 ? `✏ Editing Row #${editIdx + 1}` : '✏ Leave Entry Form'}
+          </div>
           <div className="cb">
             <LeaveEntryForm
               empId={emp.id}
               empStatus="Non-Teaching"
               empRecords={emp.records || []}
-              onSaved={refresh}
+              editIdx={editIdx}
+              editRecord={editRecord}
+              onSaved={() => { handleCancelEdit(); refresh(); }}
+              onCancelEdit={editIdx >= 0 ? handleCancelEdit : undefined}
             />
           </div>
         </div>
       )}
 
-      <NTCardTable key={refreshKey} emp={emp} isAdmin={!!(state.isAdmin || state.isEncoder)} onRefresh={refresh} />
+      <NTCardTable
+        key={refreshKey}
+        emp={emp}
+        isAdmin={!!(state.isAdmin || state.isEncoder)}
+        onRefresh={refresh}
+        onEditRow={handleEditRow}
+      />
     </div>
   );
 }
 
-function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void }) {
+function NTCardTable({ emp, isAdmin, onRefresh, onEditRow }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void; onEditRow: (idx: number, record: LeaveRecord) => void }) {
   const records = emp.records || [];
   const convIdxs: number[] = [];
   records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
@@ -76,7 +95,7 @@ function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boo
         <div className="tw">
           <table><LeaveTableHeader showAction={isAdmin} />
             <tbody>
-              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0} onRefresh={onRefresh} />
+              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0} onRefresh={onRefresh} onEditRow={onEditRow} />
             </tbody>
           </table>
         </div>
@@ -110,7 +129,7 @@ function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boo
                 const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
-              <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} />
+              <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEditRow={onEditRow} />
             </tbody>
           </table>
         </div>
@@ -119,19 +138,7 @@ function NTCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: boo
   );
 }
 
-function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void }) {
-  // REPLACE WITH (in both SingleNTEra and SingleTEra):
-  const [editIdx, setEditIdx] = useState<number | null>(null);
-
-  function handleEdit(idx: number, record: LeaveRecord) {
-    setEditIdx(editIdx === idx ? null : idx);
-    // Scroll to leave entry form at the top
-    setTimeout(() => {
-      const formEl = document.getElementById('ntFrm') || document.getElementById('tFrm');
-      if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  }
-
+function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void; onEditRow: (idx: number, record: LeaveRecord) => void }) {
   return (
     <>
       {records.map((r, ri) => {
@@ -143,7 +150,6 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: 
         const prd = r.prd + (dd ? `<br/><span class="prd-date">${dd}</span>` : '');
         const isEmpty = isEmptyRecord(r);
         const idx = startIdx + ri;
-
         const eV = r.setA_earned  ?? 0;
         const aV = r.setA_abs_wp  ?? 0;
         const bV = r.setA_balance ?? 0;
@@ -152,44 +158,17 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: 
         const aS = r.setB_abs_wp  ?? 0;
         const bS = r.setB_balance ?? 0;
         const wS = r.setB_wop     ?? 0;
-
         return (
-          <>
-            <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
-              <td>{r.so}</td>
-              <td className="period-cell" dangerouslySetInnerHTML={{ __html: prd }} />
-              <td className="nc">{hz(eV)}</td><td className="nc">{hz(aV)}</td>
-              <td className="bc">{fmtNum(bV)}</td><td className="nc">{hz(wV)}</td>
-              <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
-              <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
-              <td className={`${ac} remarks-cell`}>{r.action}</td>
-              {isAdmin && (
-                <RowMenu
-                  record={r}
-                  idx={idx}
-                  emp={emp}
-                  onRefresh={onRefresh}
-                  onEdit={() => setEditIdx(editIdx === idx ? null : idx)}
-                />
-              )}
-            </tr>
-            {isAdmin && editIdx === idx && (
-              <tr key={`edit-${r._record_id || ri}`}>
-                <td colSpan={12} style={{ padding: 12, background: '#fffbea', borderTop: '2px solid var(--amber, #f59e0b)' }}>
-                  <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--amber, #b45309)' }}>✏️ Editing Row #{idx + 1}</div>
-                  <LeaveEntryForm
-                    empId={emp.id}
-                    empStatus="Non-Teaching"
-                    empRecords={emp.records || []}
-                    editIdx={idx}
-                    editRecord={r}
-                    onSaved={() => { setEditIdx(null); onRefresh(); }}
-                    onCancelEdit={() => setEditIdx(null)}
-                  />
-                </td>
-              </tr>
-            )}
-          </>
+          <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
+            <td>{r.so}</td>
+            <td className="period-cell" dangerouslySetInnerHTML={{ __html: prd }} />
+            <td className="nc">{hz(eV)}</td><td className="nc">{hz(aV)}</td>
+            <td className="bc">{fmtNum(bV)}</td><td className="nc">{hz(wV)}</td>
+            <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
+            <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
+            <td className={`${ac} remarks-cell`}>{r.action}</td>
+            {isAdmin && <RowMenu record={r} idx={idx} emp={emp} onRefresh={onRefresh} onEdit={() => onEditRow(idx, r)} />}
+          </tr>
         );
       })}
     </>
@@ -198,7 +177,6 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: 
 
 function RowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
   const [open, setOpen] = useState(false);
-
   async function handleDelete() {
     setOpen(false);
     if (!record._record_id) return;
@@ -207,7 +185,6 @@ function RowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord;
     if (!res.ok) { alert('Delete failed: ' + (res.error || 'Unknown error')); return; }
     onRefresh();
   }
-
   return (
     <td className="no-print" style={{ textAlign: 'center', padding: '0 4px' }}>
       <div className="row-menu-wrap" style={{ position: 'relative', display: 'inline-block' }}>
