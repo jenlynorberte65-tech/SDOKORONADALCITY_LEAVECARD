@@ -15,20 +15,11 @@ export default function NTCardPage({ onBack }: Props) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editIdx, setEditIdx] = useState<number>(-1);
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
-  const curId = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => {
-  setRefreshKey(k => k + 1);
-}, []);
-
-function handleEdit(idx: number, record: LeaveRecord) {
-  setEditIdx(idx);
-  setEditRecord(record);
-  setTimeout(() => document.getElementById('ntFrm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-}
-function handleCancelEdit() { setEditIdx(-1); setEditRecord(undefined); }
-function handleSaved() { setEditIdx(-1); setEditRecord(undefined); refresh(); }
+    setRefreshKey(k => k + 1);
+  }, []);
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
@@ -41,6 +32,12 @@ function handleSaved() { setEditIdx(-1); setEditRecord(undefined); refresh(); }
   function handleCancelEdit() {
     setEditIdx(-1);
     setEditRecord(undefined);
+  }
+
+  function handleSaved() {
+    setEditIdx(-1);
+    setEditRecord(undefined);
+    refresh();
   }
 
   if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
@@ -69,14 +66,14 @@ function handleSaved() { setEditIdx(-1); setEditRecord(undefined); refresh(); }
           </div>
           <div className="cb">
             <LeaveEntryForm
-            empId={emp.id}
-            empStatus="Non-Teaching"
-  empRecords={emp.records || []}
-  editIdx={editIdx}
-  editRecord={editRecord}
-  onSaved={handleSaved}
-  onCancelEdit={handleCancelEdit}
-/>
+              empId={emp.id}
+              empStatus="Non-Teaching"
+              empRecords={emp.records || []}
+              editIdx={editIdx}
+              editRecord={editRecord}
+              onSaved={handleSaved}
+              onCancelEdit={handleCancelEdit}
+            />
           </div>
         </div>
       )}
@@ -86,7 +83,7 @@ function handleSaved() { setEditIdx(-1); setEditRecord(undefined); refresh(); }
         emp={emp}
         isAdmin={!!(state.isAdmin || state.isEncoder)}
         onRefresh={refresh}
-        onEditRow={handleEditRow}
+        onEdit={handleEditRow}
       />
     </div>
   );
@@ -103,7 +100,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
         <div className="tw">
           <table><LeaveTableHeader showAction={isAdmin} />
             <tbody>
-              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0} onRefresh={onRefresh} onEditRow={onEditRow} />
+              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0} onRefresh={onRefresh} onEdit={onEdit} />
             </tbody>
           </table>
         </div>
@@ -137,7 +134,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
                 const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
-<SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEdit={onEdit} />
+              <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEdit={onEdit} />
             </tbody>
           </table>
         </div>
@@ -175,7 +172,7 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: { r
             <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
             <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`}>{r.action}</td>
-    {isAdmin && <RowMenu record={r} idx={idx} type="nt" emp={emp} onRefresh={onRefresh} onEdit={onEdit} />}
+            {isAdmin && <RowMenu record={r} idx={idx} type="nt" emp={emp} onRefresh={onRefresh} onEdit={onEdit} />}
           </tr>
         );
       })}
@@ -199,7 +196,7 @@ function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveR
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-<button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
+            <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
             <div className="menu-div" />
             <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
