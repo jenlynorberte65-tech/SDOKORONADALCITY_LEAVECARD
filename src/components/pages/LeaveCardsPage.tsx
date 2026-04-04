@@ -2,21 +2,20 @@
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { isUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
-import { apiCall, getNTAccrualKey, getNTAccrualMonthLabel, computeRowBalanceUpdates, sortRecordsByDate } from '@/lib/api';
+import { apiCall, getNTAccrualKey, computeRowBalanceUpdates, sortRecordsByDate } from '@/lib/api';
 import type { LeaveRecord } from '@/types';
 
 interface Props { onOpenCard?: (id: string) => void; }
 
 export default function LeaveCardsPage({ onOpenCard }: Props) {
   const { state, dispatch } = useAppStore();
-  const [search, setSearch]       = useState('');
+  const [search, setSearch]             = useState('');
   const [accrualPosting, setAccrualPosting] = useState(false);
   const [accrualMsg, setAccrualMsg]         = useState('');
 
   const monthLabel = currentMonthLabel();
   const accrualKey = getNTAccrualKey();
 
-  // Check if accrual already done this month
   const accrualDone = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return !!localStorage.getItem(accrualKey);
@@ -30,29 +29,37 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
   const active = useMemo(() => state.db.filter(e => !e.archived), [state.db]);
   const q      = search.toLowerCase();
   const sorted = useMemo(() => {
-    const matches = q ? active.filter(e => `${e.id || ''} ${e.surname || ''} ${e.given || ''} ${e.pos || ''}`.toLowerCase().includes(q)) : active;
+    const matches = q
+      ? active.filter(e => `${e.id || ''} ${e.surname || ''} ${e.given || ''} ${e.pos || ''}`.toLowerCase().includes(q))
+      : active;
     return [...matches].sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
   }, [active, q]);
 
   async function doMonthlyNTAccrual() {
-    if (accrualDone) { alert(`⚠️ Monthly NT accrual has already been posted for ${monthLabel}.\n\nYou can only post once per month.`); return; }
+    if (accrualDone) {
+      alert(`⚠️ Monthly NT accrual has already been posted for ${monthLabel}.\n\nYou can only post once per month.`);
+      return;
+    }
     const ntEmps = state.db.filter(e => !e.archived && e.account_status !== 'inactive' && e.status === 'Non-Teaching');
     if (ntEmps.length === 0) { alert('No active Non-Teaching employees found.'); return; }
     if (!confirm(`Post monthly accrual (1.25 Set A + 1.25 Set B) for ${monthLabel}?\n\nThis will add an entry to all ${ntEmps.length} active Non-Teaching employee(s).\n\nThis action can only be done ONCE this month.`)) return;
 
     setAccrualPosting(true);
-    const now = new Date();
+    const now      = new Date();
     const todayISO = now.toISOString().split('T')[0];
     let successCount = 0;
     const errors: string[] = [];
 
     for (const e of ntEmps) {
       try {
-        // Load records if needed
+        // Load records only if not already in state
         let records = e.records;
         if (!records || records.length === 0) {
           const res = await apiCall('get_records', { employee_id: e.id }, 'GET');
-          if (res.ok) { records = res.records || []; dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: e.id, records } }); }
+          if (res.ok) {
+            records = res.records || [];
+            dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: e.id, records } });
+          }
         }
         const accrual: LeaveRecord = {
           so: '', prd: monthLabel, from: todayISO, to: todayISO,
@@ -69,7 +76,7 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
         dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...e, records: newRecords, lastEditedAt: new Date().toISOString() } });
 
         const updates = computeRowBalanceUpdates(newRecords, e.id, 'Non-Teaching');
-        for (const u of updates) await apiCall('save_row_balance', u as unknown as Record<string, unknown>);
+        for (const u of updates) await apiCall('save_row_balance', u);
         successCount++;
       } catch (err) {
         errors.push(`${e.surname || e.id}: ${(err as Error).message || 'error'}`);
@@ -78,9 +85,10 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
 
     localStorage.setItem(accrualKey, JSON.stringify({
       count: successCount,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date:  new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     }));
     setAccrualPosting(false);
+
     if (errors.length > 0) {
       alert(`✅ Accrual posted for ${successCount} employee(s).\n\n⚠️ Errors (${errors.length}):\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n…and more' : ''}`);
     } else {
@@ -95,7 +103,6 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
       <div className="toolbar no-print" style={{ flexWrap: 'wrap', gap: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--mu)', fontWeight: 500 }}>Click an employee to open their leave card.</span>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Monthly accrual button */}
           <button
             id="ntAccrualBtn"
             className="btn"
@@ -124,8 +131,8 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {sorted.map(e => {
-              const isT  = e.status === 'Teaching';
-              const upd  = isUpdatedThisMonth(e.lastEditedAt);
+              const isT = e.status === 'Teaching';
+              const upd = isUpdatedThisMonth(e.lastEditedAt);
               return (
                 <button
                   key={e.id}
