@@ -17,9 +17,14 @@ export default function NTCardPage({ onBack }: Props) {
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(() => {
+   const refresh = useCallback(async () => {
+    if (!curId) return;
+    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (res.ok && res.records) {
+      dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
+    }
     setRefreshKey(k => k + 1);
-  }, []);
+  }, [curId, dispatch]);
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
