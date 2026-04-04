@@ -84,7 +84,7 @@ export default function NTCardPage({ onBack }: Props) {
   );
 }
 
-function NTCardTable({ emp, isAdmin, onRefresh, onEditRow }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void; onEditRow: (idx: number, record: LeaveRecord) => void }) {
+function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
   const records = emp.records || [];
   const convIdxs: number[] = [];
   records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
@@ -129,7 +129,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEditRow }: { emp: Personnel; i
                 const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
-              <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEditRow={onEditRow} />
+<SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEdit={onEdit} />
             </tbody>
           </table>
         </div>
@@ -138,7 +138,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEditRow }: { emp: Personnel; i
   );
 }
 
-function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void; onEditRow: (idx: number, record: LeaveRecord) => void }) {
+function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
   return (
     <>
       {records.map((r, ri) => {
@@ -167,7 +167,7 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: 
             <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
             <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`}>{r.action}</td>
-            {isAdmin && <RowMenu record={r} idx={idx} emp={emp} onRefresh={onRefresh} onEdit={() => onEditRow(idx, r)} />}
+    {isAdmin && <RowMenu record={r} idx={idx} type="nt" emp={emp} onRefresh={onRefresh} onEdit={onEdit} />}
           </tr>
         );
       })}
@@ -175,7 +175,7 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: 
   );
 }
 
-function RowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
+function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; type: string; emp: Personnel; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
   const [open, setOpen] = useState(false);
   async function handleDelete() {
     setOpen(false);
@@ -191,7 +191,7 @@ function RowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord;
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-            <button onClick={() => { setOpen(false); onEdit(); }}>✏️ Edit Row</button>
+<button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
             <div className="menu-div" />
             <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
