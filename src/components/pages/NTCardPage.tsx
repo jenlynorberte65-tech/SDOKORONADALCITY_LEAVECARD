@@ -61,14 +61,14 @@ export default function NTCardPage({ onBack }: Props) {
           </div>
           <div className="cb">
             <LeaveEntryForm
-              empId={emp.id}
-              empStatus="Non-Teaching"
-              empRecords={emp.records || []}
-              editIdx={editIdx}
-              editRecord={editRecord}
-              onSaved={() => { handleCancelEdit(); refresh(); }}
-              onCancelEdit={editIdx >= 0 ? handleCancelEdit : undefined}
-            />
+            empId={emp.id}
+            empStatus="Non-Teaching"
+  empRecords={emp.records || []}
+  editIdx={editIdx}
+  editRecord={editRecord}
+  onSaved={handleSaved}
+  onCancelEdit={handleCancelEdit}
+/>
           </div>
         </div>
       )}
