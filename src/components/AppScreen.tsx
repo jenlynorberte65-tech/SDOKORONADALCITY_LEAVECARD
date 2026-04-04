@@ -8,6 +8,8 @@ import SchoolAdminPage from '@/components/pages/SchoolAdminPage';
 import UserPage from '@/components/pages/UserPage';
 import NTCardPage from '@/components/pages/NTCardPage';
 import TCardPage from '@/components/pages/TCardPage';
+import { apiCall } from '@/lib/api';
+import type { Personnel } from '@/types';
 
 export default function AppScreen() {
   const { state, dispatch } = useAppStore();
@@ -15,22 +17,15 @@ export default function AppScreen() {
 
   const isEmployee = state.role === 'employee';
 
-  function saveSession(updates: Record<string, unknown>) {
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      const s = raw ? JSON.parse(raw) : {};
-      sessionStorage.setItem('deped_session', JSON.stringify({ ...s, ...updates }));
-    } catch { /* ignore */ }
-  }
-
   function handleNavigate(page: string) {
     dispatch({ type: 'SET_PAGE', payload: page as never });
-    saveSession({ page });
-  }
-
-  function handleOpenCard(id: string) {
-    dispatch({ type: 'SET_CUR_ID', payload: id });
-    saveSession({ curId: id });
+    try {
+      const raw = sessionStorage.getItem('deped_session');
+      if (raw) {
+        const s = JSON.parse(raw);
+        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, page }));
+      }
+    } catch { /* ignore */ }
   }
 
   function handleLogout() {
@@ -38,8 +33,38 @@ export default function AppScreen() {
     sessionStorage.removeItem('deped_session');
   }
 
+  // Opens a leave card — pre-fetches records if not already loaded, then navigates instantly
+  async function handleOpenCard(id: string) {
+    const emp = state.db.find(e => e.id === id) as Personnel | undefined;
+    const page = emp?.status === 'Teaching' ? 't' : 'nt';
+
+    // Save to sessionStorage for refresh restore
+    try {
+      const raw = sessionStorage.getItem('deped_session');
+      if (raw) {
+        const s = JSON.parse(raw);
+        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id, page }));
+      }
+    } catch { /* ignore */ }
+
+    dispatch({ type: 'SET_CUR_ID', payload: id });
+
+    // If records not loaded yet, fetch them before showing the card
+    if (!emp?.records || emp.records.length === 0) {
+      try {
+        const res = await apiCall('get_records', { employee_id: id }, 'GET');
+        if (res.ok && res.records) {
+          dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id, records: res.records } });
+        }
+      } catch { /* navigate anyway, card will be empty */ }
+    }
+
+    dispatch({ type: 'SET_PAGE', payload: page });
+  }
+
   return (
     <div id="s-app" className="screen active">
+      {/* Sidebar — hidden for employee */}
       {!isEmployee && (
         <Sidebar
           open={sidebarOpen}
@@ -49,6 +74,7 @@ export default function AppScreen() {
         />
       )}
 
+      {/* Topbar */}
       <Topbar
         onMenuClick={() => setSidebarOpen(true)}
         showMenu={!isEmployee}
@@ -56,19 +82,16 @@ export default function AppScreen() {
         showLogoutBtn={isEmployee}
       />
 
+      {/* Page content */}
       <div className="ca">
+        {/* Admin/Encoder pages */}
         {(state.isAdmin || state.isEncoder) && (
           <>
             <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
-              <PersonnelListPage onOpenCard={id => { handleOpenCard(id); }} />
+              <PersonnelListPage onOpenCard={handleOpenCard} />
             </div>
             <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
-              <LeaveCardsPage onOpenCard={id => {
-                handleOpenCard(id);
-                const emp = state.db.find(e => e.id === id);
-                const page = emp?.status === 'Teaching' ? 't' : 'nt';
-                handleNavigate(page);
-              }} />
+              <LeaveCardsPage onOpenCard={handleOpenCard} />
             </div>
             <div className={`page${state.page === 'nt'    ? ' on' : ''}`}>
               <NTCardPage onBack={() => handleNavigate('cards')} />
@@ -79,12 +102,14 @@ export default function AppScreen() {
           </>
         )}
 
+        {/* School Admin page */}
         {state.isSchoolAdmin && (
           <div className={`page${state.page === 'sa' ? ' on' : ''}`}>
             <SchoolAdminPage />
           </div>
         )}
 
+        {/* Employee read-only view */}
         {isEmployee && (
           <div className={`page${state.page === 'user' ? ' on' : ''}`}>
             <UserPage onLogout={handleLogout} />
@@ -92,6 +117,7 @@ export default function AppScreen() {
         )}
       </div>
 
+      {/* Hidden print/PDF areas */}
       <div id="printPageHeader" />
       <div id="pdfArea" />
     </div>
