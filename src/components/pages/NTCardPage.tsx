@@ -55,8 +55,8 @@ export default function NTCardPage({ onBack }: Props) {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn b-pdf" onClick={() => window.print()}>⬇ Download PDF</button>
-          <button className="btn b-prn" onClick={() => window.print()}>🖨 Print</button>
+           <button className="btn b-pdf" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>⬇ Download PDF</button>
+          <button className="btn b-prn" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>🖨 Print</button>
         </div>
       </div>
 
