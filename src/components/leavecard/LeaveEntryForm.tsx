@@ -114,7 +114,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       : await apiCall('save_record',   { employee_id: empId, record: d });
     if (!res.ok) { alert('Save failed: ' + (res.error || 'Unknown error')); setSaving(false); return; }
 
-    if (!existingId && res.record_id) d._record_id = res.record_id;
+   if (!existingId && res.record_id) d._record_id = res.record_id;
+    if (existingId) d._record_id = existingId;
     const newRecords = [...empRecords];
     if (editIdx > -1) newRecords[editIdx] = d; else newRecords.push(d);
     sortRecordsByDate(newRecords);
