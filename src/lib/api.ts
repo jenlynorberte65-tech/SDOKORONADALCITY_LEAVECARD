@@ -238,7 +238,8 @@ export function computeRowBalanceUpdates(
       else if (C.isVacation && days > 0)      { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
       else if (C.isSick && days > 0)          { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
       else if (C.isForce && days > 0)         { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
-      else if (C.isTerminal && days > 0)      { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
+       else if (C.isTerminal && days > 0) { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } if (bS >= days) { 
+         rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
       else if (C.isSetB_noDeduct && days > 0) { rowBAbsWP = days; }
       else if (C.isSetA_noDeduct && days > 0) { rowAAbsWP = days; }
       else if (days > 0)                      { rowAAbsWP = days; }
