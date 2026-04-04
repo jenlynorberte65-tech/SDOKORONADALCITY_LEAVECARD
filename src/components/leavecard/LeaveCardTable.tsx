@@ -27,7 +27,8 @@ export function computeNTRow(r: LeaveRecord, bV: number, bS: number): NTRowResul
   else if (C.isVacation&&days>0)       { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
   else if (C.isSick&&days>0)           { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
   else if (C.isForce&&days>0)          { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} }
-  else if (C.isTerminal&&days>0)       { if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
+  else if (C.isTerminal&&days>0) { if(bV>=days){aV=days;bV-=days;}else{aV=Math.max(0,bV);wV=days-aV;bV=0;} 
+  if(bS>=days){aS=days;bS-=days;}else{aS=Math.max(0,bS);wS=days-aS;bS=0;} }
   else if (C.isSetB_noDeduct&&days>0)  { aS=days; }
   else if (C.isSetA_noDeduct&&days>0)  { aV=days; }
   else if (days>0)                     { aV=days; }
