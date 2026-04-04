@@ -19,8 +19,16 @@ export default function NTCardPage({ onBack }: Props) {
   const formRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => {
-    setRefreshKey(k => k + 1);
-  }, []);
+  setRefreshKey(k => k + 1);
+}, []);
+
+function handleEdit(idx: number, record: LeaveRecord) {
+  setEditIdx(idx);
+  setEditRecord(record);
+  setTimeout(() => document.getElementById('ntFrm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+function handleCancelEdit() { setEditIdx(-1); setEditRecord(undefined); }
+function handleSaved() { setEditIdx(-1); setEditRecord(undefined); refresh(); }
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
