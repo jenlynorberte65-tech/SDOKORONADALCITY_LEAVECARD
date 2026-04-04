@@ -31,12 +31,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
 
   const [so, setSo]           = useState(editRecord?.so || '');
   const [prd, setPrd]         = useState(editRecord?.prd || '');
-  // REPLACE WITH:
-  function isoToDisplay(iso: string): string {
-    if (!iso) return '';
-    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    return m ? `${m[2]}/${m[3]}/${m[1]}` : iso;
-  }
   const [frText, setFrText]   = useState(editRecord?.from ? isoToDisplay(editRecord.from) : '');
   const [toText, setToText]   = useState(editRecord?.to   ? isoToDisplay(editRecord.to)   : '');
   const [frPick, setFrPick]   = useState(editRecord?.from || '');
