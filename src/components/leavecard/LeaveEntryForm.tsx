@@ -88,7 +88,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     }
   }, [editRecord]);
 
-  const al = action.toLowerCase();
+ 
   const al = action.toLowerCase();
   const isMon = al.includes('monetization') && !al.includes('disapproved');
   const isMD  = al.includes('monetization') && al.includes('disapproved');
