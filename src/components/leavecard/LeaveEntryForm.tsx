@@ -122,7 +122,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     if (emp) dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: newRecords, lastEditedAt: new Date().toISOString() } });
 
     const updates = computeRowBalanceUpdates(newRecords, empId, empStatus);
-    for (const u of updates) await apiCall('save_row_balance', u as unknown as Record<string, unknown>);
+    await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
     setSaving(false);
     // Reset form
     setSo(''); setPrd(''); setFrText(''); setToText(''); setFrPick(''); setToPick('');
