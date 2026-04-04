@@ -113,7 +113,17 @@ function TCardTable({ emp, isAdmin, onRefresh }: { emp: Personnel; isAdmin: bool
 }
 
 function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void }) {
+  // REPLACE WITH (in both SingleNTEra and SingleTEra):
   const [editIdx, setEditIdx] = useState<number | null>(null);
+
+  function handleEdit(idx: number, record: LeaveRecord) {
+    setEditIdx(editIdx === idx ? null : idx);
+    // Scroll to leave entry form at the top
+    setTimeout(() => {
+      const formEl = document.getElementById('ntFrm') || document.getElementById('tFrm');
+      if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
 
   return (
     <>
