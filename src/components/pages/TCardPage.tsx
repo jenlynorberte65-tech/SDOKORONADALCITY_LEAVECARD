@@ -17,6 +17,7 @@ export default function TCardPage({ onBack }: Props) {
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const curId = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
+const curId = state.curId;
 
     const refresh = useCallback(async () => {
     if (!curId) return;
