@@ -16,7 +16,7 @@ export default function NTCardPage({ onBack }: Props) {
   const [editIdx, setEditIdx] = useState<number>(-1);
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
-const curId = state.curId;
+  const curId = state.curId;
 
    const refresh = useCallback(async () => {
     if (!curId) return;
