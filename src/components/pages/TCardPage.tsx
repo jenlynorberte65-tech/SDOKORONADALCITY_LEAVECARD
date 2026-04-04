@@ -51,7 +51,7 @@ export default function TCardPage({ onBack }: Props) {
          <button className="btn b-pdf" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>⬇ Download PDF</button>
           <button className="btn b-prn" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>🖨 Print</button>
       </div>
-
+     </div>
       <div className="card" id="tCard">
         <div className="ch grn center">📋 Teaching Personnel Leave Record (Service Credits)</div>
         <div className="cb"><ProfileBlock e={emp as never} /></div>
