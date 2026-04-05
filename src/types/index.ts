@@ -36,8 +36,9 @@ export interface SessionState {
 }
 
 export interface LeaveRecord {
-  _record_id?: number;
+   _record_id?: number;
   _conversion?: boolean;
+  sort_order?: number;
   so: string;
   prd: string;
   from: string;
