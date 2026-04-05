@@ -219,22 +219,27 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
 .tb-filter-clear:hover{background:var(--rd);color:white;border-color:var(--rd);}
 .email-hint{font-size:10px;color:#e53e3e;display:none;margin-top:3px;}
 
-/* ── Print/PDF ── */
+/* ── PDF area ── */
+#pdfArea{position:fixed;top:0;left:-9999px;background:white;z-index:-1;font-family:Inter,sans-serif;}
+#pdfArea .no-print{display:none!important;}
+#pdfArea .tw{overflow:visible!important;max-height:none!important;width:100%!important;}
+
 /* ── Print/PDF ── */
 @media print {
-  *, *::before, *::after {
+  *,*::before,*::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
   @page { size: 8.5in 13in portrait; margin: 10mm 8mm 10mm 8mm; }
 
-  .topbar, .no-print, button { display: none !important; }
+  html,body { margin: 0 !important; padding: 0 !important; background: white !important; font-size: 8px !important; }
+
+  .topbar,.no-print,button { display: none !important; }
   #s-login { display: none !important; }
   #s-app { display: block !important; }
   .ca { padding: 0 !important; max-width: 100% !important; }
-  body { background: white !important; font-size: 8px !important; margin: 0 !important; padding: 0 !important; }
 
-  /* Remove ALL borders/shadows from cards on print — fixes left border line */
   .card {
     box-shadow: none !important;
     border: none !important;
@@ -247,21 +252,39 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
   .page { display: none !important; }
   .page.printing { display: block !important; padding-top: 0 !important; }
 
+  .ch {
+    color: white !important;
+    padding: 8px 14px !important;
+    font-size: 9px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .ch.grn { background: linear-gradient(90deg,var(--g0),var(--g2)) !important; }
+  .ch.amber { background: linear-gradient(90deg,#3d1800,var(--am)) !important; }
+  .ch.navy { background: linear-gradient(90deg,#0c1f48,var(--nb)) !important; }
+
+  .cb { padding: 10px 14px !important; }
+  .pg { grid-template-columns: repeat(4,1fr) !important; gap: 8px !important; }
+  .pi label { font-size: 7px !important; }
+  .pi span { font-size: 9px !important; }
+
   .tw { overflow: visible !important; max-height: none !important; width: 100% !important; display: block !important; }
   table { font-size: 9px !important; width: 100% !important; table-layout: auto !important; border-collapse: collapse !important; }
-  thead th { font-size: 8.5px !important; padding: 3px !important; white-space: nowrap !important; line-height: 1.3 !important; }
+  thead th { font-size: 8.5px !important; padding: 3px !important; white-space: nowrap !important; line-height: 1.3 !important; background: var(--g0) !important; color: white !important; }
   thead th.ths { font-size: 8px !important; padding: 2px !important; }
+  thead th.tha { background: var(--g2) !important; }
+  thead th.thb { background: var(--nb) !important; }
   tbody td { padding: 3px !important; font-size: 9px !important; white-space: nowrap !important; border: 1px solid #ced6de !important; }
   .remarks-cell { font-size: 9px !important; white-space: normal !important; word-break: break-word !important; padding: 4px 5px !important; }
   .prd-date { font-size: 9px !important; display: block !important; }
   .period-cell { font-size: 12px !important; text-align: left !important; padding-left: 5px !important; white-space: normal !important; }
-  .bc { font-size: 9px !important; font-weight: 700 !important; }
+  .bc { font-size: 9px !important; font-weight: 700 !important; background: var(--au2) !important; color: #6b4a10 !important; }
   .nc { font-size: 9px !important; }
+  .rdc { color: var(--rd) !important; font-weight: 700 !important; }
+  .puc { color: var(--pu) !important; font-weight: 700 !important; }
 
   thead { display: table-header-group; }
-  .pg { grid-template-columns: repeat(4, 1fr) !important; }
 
-  /* Era sections */
   .era-wrapper { display: block !important; margin-bottom: 0 !important; }
   .era-old-toggle { display: none !important; }
   .era-old-body { display: block !important; }
@@ -270,20 +293,11 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
   .era-fwd-row td { color: #8a5a0a !important; font-weight: 700 !important; }
 }
 
-#pdfArea { position: fixed; top: 0; left: -9999px; background: white; z-index: -1; font-family: Inter, sans-serif; }
-#pdfArea .no-print { display: none !important; }
-#pdfArea .tw { overflow: visible !important; max-height: none !important; width: 100% !important; }
-
+/* ── Responsive ── */
 @media(max-width:700px){
   .split{flex-direction:column;}
   .pg{grid-template-columns:repeat(2,1fr)!important;}
   .ca{padding:16px;}
   .stats-row{grid-template-columns:1fr;}
   .sidebar{width:85vw;}
-}
-@media print {
-  @page { size: legal portrait; margin: 10mm; }
-  .no-print { display: none !important; }
-  .page { display: none !important; }
-  .page.printing { display: block !important; }
 }
