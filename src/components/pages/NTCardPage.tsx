@@ -8,7 +8,30 @@ import { EraSection } from '@/components/leavecard/EraSection';
 import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
+// At the top of TCardPage, add this download helper:
+async function handleDownload() {
+  const el = document.getElementById('tCard');
+  if (!el) return;
+  // Dynamically import jsPDF + html2canvas (install: npm i jspdf html2canvas)
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas'),
+  ]);
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+  const imgData = canvas.toDataURL('image/png');
+  // Legal paper: 8.5 x 14 inches → 215.9 x 355.6 mm
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 355.6] });
+  const pdfW = pdf.internal.pageSize.getWidth();
+  const pdfH = (canvas.height * pdfW) / canvas.width;
+  pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+  pdf.save(`LeaveCard_${emp?.name || 'employee'}.pdf`);
+}
 
+function handlePrint() {
+  document.querySelector('.page.on')?.classList.add('printing');
+  window.print();
+  setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1500);
+}
 export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
@@ -55,8 +78,8 @@ export default function NTCardPage({ onBack }: Props) {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-           <button className="btn b-pdf" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>⬇ Download PDF</button>
-          <button className="btn b-prn" onClick={() => { document.querySelector('.page.on')?.classList.add('printing'); window.print(); setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1000); }}>🖨 Print</button>
+          <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
+<button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
         </div>
       </div>
 
