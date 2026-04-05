@@ -149,21 +149,28 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
 
   segStarts.forEach((start, si) => {
     const end = segEnds[si];
+    if (end - start < 2) return;
 
-    // Collect positions of dated records only
-    const datedPositions: number[] = [];
+    const dated:   LeaveRecord[] = [];
+    const undated: LeaveRecord[] = [];
+
     for (let i = start; i < end; i++) {
-      if (recordSortKey(records[i]) !== null) datedPositions.push(i);
+      const r = records[i];
+      const hasDate = recordSortKey(r) !== null;
+      if (hasDate) {
+        dated.push(r);
+      } else {
+        undated.push(r);
+      }
     }
-    if (datedPositions.length < 2) return; // nothing to sort
 
-    // Sort only the dated records by date
-    const datedRecs = datedPositions.map(i => records[i]);
-    datedRecs.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
+    // Sort dated records by date oldest → newest
+    dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
 
-    // Put sorted dated records BACK into their original dated positions
-    // Undated records remain untouched at their own positions
-    datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
+    // Always: undated first (in original order), then dated rows
+    // This keeps opening balance + no-date rows at top, dated rows at bottom
+    const sorted = [...undated, ...dated];
+    sorted.forEach((rec, i) => { records[start + i] = rec; });
   });
 }
 export function isEmptyRecord(r: LeaveRecord): boolean {
