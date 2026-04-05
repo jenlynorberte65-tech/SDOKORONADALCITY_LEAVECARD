@@ -69,7 +69,8 @@ export default function TCardPage({ onBack }: Props) {
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const curId = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
-
+const [insertIdx, setInsertIdx] = useState<number>(-1);
+  const [insertAfterSortOrder, setInsertAfterSortOrder] = useState<number | null>(null);
 
     const refresh = useCallback(async () => {
     if (!curId) return;
