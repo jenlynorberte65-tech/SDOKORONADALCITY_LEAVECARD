@@ -151,18 +151,27 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
     const end = segEnds[si];
     if (end - start < 2) return;
 
+    // Always pin the very first record of each segment (opening balance) at the top
+    const anchor = records[start];
+    const sortStart = start + 1;
+
     const dated:   LeaveRecord[] = [];
     const undated: LeaveRecord[] = [];
 
-    for (let i = start; i < end; i++) {
+    for (let i = sortStart; i < end; i++) {
       const r = records[i];
-      const hasDate = recordSortKey(r) !== null;
-      if (hasDate) {
-        dated.push(r);
-      } else {
-        undated.push(r);
-      }
+      if (recordSortKey(r) !== null) dated.push(r);
+      else undated.push(r);
     }
+
+    // Sort dated records oldest → newest
+    dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
+
+    // Order: anchor (first row) → dated rows → undated rows (pinned to bottom)
+    const sorted = [anchor, ...dated, ...undated];
+    sorted.forEach((rec, i) => { records[start + i] = rec; });
+  });
+}
 
     // Sort dated records by date oldest → newest
     dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
