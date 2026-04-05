@@ -220,41 +220,59 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
 .email-hint{font-size:10px;color:#e53e3e;display:none;margin-top:3px;}
 
 /* ── Print/PDF ── */
-@media print{
-  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-  .topbar,.no-print,button{display:none!important;}
-  #s-login{display:none!important;}
-  #s-app{display:block!important;}
-  .ca{padding:0!important;max-width:100%!important;}
-  .page{display:none!important;}
-  .page.printing{display:block!important;padding-top:46px!important;}
-  body{background:white!important;font-size:8px!important;margin:0!important;padding:0!important;}
-  .card{box-shadow:none!important;border:1px solid #d0d0d0!important;margin-bottom:4px!important;border-radius:0!important;overflow:visible!important;}
-  .tw{overflow:visible!important;max-height:none!important;width:100%!important;display:block!important;}
-  table{font-size:9px!important;width:100%!important;table-layout:auto!important;border-collapse:collapse!important;}
-  thead th{font-size:8.5px!important;padding:3px 3px!important;white-space:nowrap!important;line-height:1.3!important;}
-  thead th.ths{font-size:8px!important;padding:2px 2px!important;white-space:nowrap!important;}
-  tbody td{padding:3px 3px!important;font-size:9px!important;white-space:nowrap!important;border:1px solid #ced6de!important;}
-  .remarks-cell{font-size:9px!important;line-height:1.6!important;white-space:normal!important;word-break:break-word!important;padding:4px 5px!important;}
-  .prd-date{font-size:9px!important;display:block!important;margin-top:2px!important;font-weight:500!important;color:#1e2530!important;}
-  .period-cell{font-size:13px!important;text-align:left!important;padding-left:5px!important;line-height:1.5!important;white-space:normal!important;word-break:break-word!important;}
-  .bc{font-size:9px!important;font-weight:700!important;}
-  .nc{font-size:9px!important;}
-  .print-chunk-break{page-break-after:always;}
-  thead{display:table-header-group;}
-  .pg{grid-template-columns:repeat(4,1fr)!important;}
-  .era-wrapper{display:block!important;margin-bottom:0!important;}
-  .era-old-toggle{display:none!important;}
-  .era-old-body{display:block!important;}
-  .era-new-section{page-break-before:always!important;}
-  .era-fwd-row{background:#fff9f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .era-fwd-row td{color:#8a5a0a!important;font-weight:700!important;}
-  @page{size:8.5in 13in portrait;margin:15mm 5mm 12mm 5mm;}
+/* ── Print/PDF ── */
+@media print {
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page { size: 8.5in 13in portrait; margin: 10mm 8mm 10mm 8mm; }
+
+  .topbar, .no-print, button { display: none !important; }
+  #s-login { display: none !important; }
+  #s-app { display: block !important; }
+  .ca { padding: 0 !important; max-width: 100% !important; }
+  body { background: white !important; font-size: 8px !important; margin: 0 !important; padding: 0 !important; }
+
+  /* Remove ALL borders/shadows from cards on print — fixes left border line */
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    border-bottom: 1px solid #d0d0d0 !important;
+    margin-bottom: 4px !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  .page { display: none !important; }
+  .page.printing { display: block !important; padding-top: 0 !important; }
+
+  .tw { overflow: visible !important; max-height: none !important; width: 100% !important; display: block !important; }
+  table { font-size: 9px !important; width: 100% !important; table-layout: auto !important; border-collapse: collapse !important; }
+  thead th { font-size: 8.5px !important; padding: 3px !important; white-space: nowrap !important; line-height: 1.3 !important; }
+  thead th.ths { font-size: 8px !important; padding: 2px !important; }
+  tbody td { padding: 3px !important; font-size: 9px !important; white-space: nowrap !important; border: 1px solid #ced6de !important; }
+  .remarks-cell { font-size: 9px !important; white-space: normal !important; word-break: break-word !important; padding: 4px 5px !important; }
+  .prd-date { font-size: 9px !important; display: block !important; }
+  .period-cell { font-size: 12px !important; text-align: left !important; padding-left: 5px !important; white-space: normal !important; }
+  .bc { font-size: 9px !important; font-weight: 700 !important; }
+  .nc { font-size: 9px !important; }
+
+  thead { display: table-header-group; }
+  .pg { grid-template-columns: repeat(4, 1fr) !important; }
+
+  /* Era sections */
+  .era-wrapper { display: block !important; margin-bottom: 0 !important; }
+  .era-old-toggle { display: none !important; }
+  .era-old-body { display: block !important; }
+  .era-new-section { page-break-before: always !important; }
+  .era-fwd-row { background: #fff9f0 !important; }
+  .era-fwd-row td { color: #8a5a0a !important; font-weight: 700 !important; }
 }
-#printPageHeader{display:none;}
-#pdfArea{position:fixed;top:0;left:-9999px;background:white;z-index:-1;font-family:Inter,sans-serif;}
-#pdfArea .no-print{display:none!important;}
-#pdfArea .tw{overflow:visible!important;max-height:none!important;width:100%!important;}
+
+#pdfArea { position: fixed; top: 0; left: -9999px; background: white; z-index: -1; font-family: Inter, sans-serif; }
+#pdfArea .no-print { display: none !important; }
+#pdfArea .tw { overflow: visible !important; max-height: none !important; width: 100% !important; }
 
 @media(max-width:700px){
   .split{flex-direction:column;}
