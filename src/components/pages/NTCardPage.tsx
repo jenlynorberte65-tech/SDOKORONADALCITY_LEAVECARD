@@ -8,60 +8,42 @@ import { EraSection } from '@/components/leavecard/EraSection';
 import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
-// At the top of TCardPage, add this download helper:
+
 async function handleDownload() {
-  // Capture BOTH the profile card AND the table card
   const profileEl = document.getElementById('ntCard');
   const tableEl   = document.getElementById('ntTblCard');
   if (!profileEl) return;
-
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
-
-  // Legal paper: 8.5 x 13 inches (legal) = 215.9 x 330.2 mm
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
-  const pdfW = pdf.internal.pageSize.getWidth();
-  const margin = 5; // mm
+  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
+  const pdfW    = pdf.internal.pageSize.getWidth();
+  const margin  = 5;
   const usableW = pdfW - margin * 2;
-  let cursorY = margin;
-
-  // Helper: add an element to the PDF
+  let cursorY   = margin;
   async function addElement(el: HTMLElement) {
-    // Temporarily remove border/shadow for clean capture
     const prev = el.style.cssText;
-    el.style.boxShadow = 'none';
-    el.style.border = 'none';
+    el.style.boxShadow    = 'none';
+    el.style.border       = 'none';
     el.style.borderRadius = '0';
-
     const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
       ignoreElements: (node) => {
         const n = node as HTMLElement;
         return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
       },
     });
-
     el.style.cssText = prev;
-
-    const imgData  = canvas.toDataURL('image/png');
-    const imgH     = (canvas.height * usableW) / canvas.width;
-    const pageH    = pdf.internal.pageSize.getHeight();
-
-    if (cursorY + imgH > pageH - margin) {
-      pdf.addPage();
-      cursorY = margin;
-    }
+    const imgData = canvas.toDataURL('image/png');
+    const imgH    = (canvas.height * usableW) / canvas.width;
+    const pageH   = pdf.internal.pageSize.getHeight();
+    if (cursorY + imgH > pageH - margin) { pdf.addPage(); cursorY = margin; }
     pdf.addImage(imgData, 'PNG', margin, cursorY, usableW, imgH);
     cursorY += imgH + 3;
   }
-
   if (profileEl) await addElement(profileEl);
   if (tableEl)   await addElement(tableEl);
-
   pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
@@ -70,17 +52,19 @@ function handlePrint() {
   window.print();
   setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1500);
 }
+
 export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [editIdx, setEditIdx] = useState<number>(-1);
-  const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
-  const formRef = useRef<HTMLDivElement>(null);
-  const curId = state.curId;
-const [insertIdx, setInsertIdx] = useState<number>(-1);
+  const [refreshKey, setRefreshKey]                     = useState(0);
+  const [editIdx, setEditIdx]                           = useState<number>(-1);
+  const [editRecord, setEditRecord]                     = useState<LeaveRecord | undefined>(undefined);
+  const [insertIdx, setInsertIdx]                       = useState<number>(-1);
   const [insertAfterSortOrder, setInsertAfterSortOrder] = useState<number | null>(null);
-   const refresh = useCallback(async () => {
+  const formRef = useRef<HTMLDivElement>(null);
+  const curId   = state.curId;
+
+  const refresh = useCallback(async () => {
     if (!curId) return;
     const res = await apiCall('get_records', { employee_id: curId }, 'GET');
     if (res.ok && res.records) {
@@ -92,23 +76,39 @@ const [insertIdx, setInsertIdx] = useState<number>(-1);
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
     setEditRecord(record);
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+    setInsertIdx(-1);
+    setInsertAfterSortOrder(null);
+    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  }
+
+  function handleInsertRow(afterIdx: number, afterSortOrder: number) {
+    setInsertIdx(afterIdx);
+    setInsertAfterSortOrder(afterSortOrder);
+    setEditIdx(-1);
+    setEditRecord(undefined);
+    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
   }
 
   function handleCancelEdit() {
     setEditIdx(-1);
     setEditRecord(undefined);
+    setInsertIdx(-1);
+    setInsertAfterSortOrder(null);
   }
 
   function handleSaved() {
     setEditIdx(-1);
     setEditRecord(undefined);
+    setInsertIdx(-1);
+    setInsertAfterSortOrder(null);
     refresh();
   }
 
-  if (!emp) return <div className="card"><div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div></div>;
+  if (!emp) return (
+    <div className="card">
+      <div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div>
+    </div>
+  );
 
   const isReadOnly = emp.archived;
 
@@ -117,8 +117,8 @@ const [insertIdx, setInsertIdx] = useState<number>(-1);
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-         <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
-        <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
+          <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
+          <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
         </div>
       </div>
 
@@ -130,7 +130,11 @@ const [insertIdx, setInsertIdx] = useState<number>(-1);
       {!isReadOnly && (state.isAdmin || state.isEncoder) && (
         <div className="card no-print" id="ntFrm" ref={formRef}>
           <div className="ch amber">
-            {editIdx >= 0 ? `✏ Editing Row #${editIdx + 1}` : '✏ Leave Entry Form'}
+            {editIdx >= 0
+              ? `✏ Editing Row #${editIdx + 1}`
+              : insertIdx >= 0
+              ? `➕ Inserting Row after Row #${insertIdx + 1}`
+              : '✏ Leave Entry Form'}
           </div>
           <div className="cb">
             <LeaveEntryForm
@@ -139,6 +143,7 @@ const [insertIdx, setInsertIdx] = useState<number>(-1);
               empRecords={emp.records || []}
               editIdx={editIdx}
               editRecord={editRecord}
+              insertAfterSortOrder={insertAfterSortOrder}
               onSaved={handleSaved}
               onCancelEdit={handleCancelEdit}
             />
@@ -152,12 +157,17 @@ const [insertIdx, setInsertIdx] = useState<number>(-1);
         isAdmin={!!(state.isAdmin || state.isEncoder)}
         onRefresh={refresh}
         onEdit={handleEditRow}
+        onInsert={handleInsertRow}
       />
     </div>
   );
 }
 
-function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAdmin: boolean; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
+function NTCardTable({ emp, isAdmin, onRefresh, onEdit, onInsert }: {
+  emp: Personnel; isAdmin: boolean; onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+  onInsert: (afterIdx: number, afterSortOrder: number) => void;
+}) {
   const records = emp.records || [];
   const convIdxs: number[] = [];
   records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
@@ -166,9 +176,11 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
     return (
       <div className="card" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
-          <table><LeaveTableHeader showAction={isAdmin} />
+          <table>
+            <LeaveTableHeader showAction={isAdmin} />
             <tbody>
-              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0} onRefresh={onRefresh} onEdit={onEdit} />
+              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0}
+                onRefresh={onRefresh} onEdit={onEdit} onInsert={onInsert} />
             </tbody>
           </table>
         </div>
@@ -177,12 +189,12 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
   }
 
   const segments: { status: string; recs: LeaveRecord[]; startIdx: number; convIdx: number; conv: LeaveRecord | null }[] = [];
-  let segStart = 0;
+  let segStart  = 0;
   let curStatus = records[convIdxs[0]].fromStatus || emp.status;
   for (const cIdx of convIdxs) {
     segments.push({ status: curStatus, recs: records.slice(segStart, cIdx), startIdx: segStart, convIdx: cIdx, conv: records[cIdx] });
     curStatus = records[cIdx].toStatus || emp.status;
-    segStart = cIdx + 1;
+    segStart  = cIdx + 1;
   }
   segments.push({ status: curStatus, recs: records.slice(segStart), startIdx: segStart, convIdx: -1, conv: null });
 
@@ -193,7 +205,8 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
       ))}
       <div className="card era-new-section" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
-          <table><LeaveTableHeader showAction={isAdmin} />
+          <table>
+            <LeaveTableHeader showAction={isAdmin} />
             <tbody>
               {segments.length > 1 && segments[segments.length - 2].conv && (() => {
                 const prevSeg = segments[segments.length - 2];
@@ -202,7 +215,12 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
                 const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
-              <SingleNTEra records={segments[segments.length - 1].recs} isAdmin={isAdmin} emp={emp} startIdx={segments[segments.length - 1].startIdx} onRefresh={onRefresh} onEdit={onEdit} />
+              <SingleNTEra
+                records={segments[segments.length - 1].recs}
+                isAdmin={isAdmin} emp={emp}
+                startIdx={segments[segments.length - 1].startIdx}
+                onRefresh={onRefresh} onEdit={onEdit} onInsert={onInsert}
+              />
             </tbody>
           </table>
         </div>
@@ -211,18 +229,23 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: { emp: Personnel; isAd
   );
 }
 
-function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: { records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
+function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit, onInsert }: {
+  records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
+  onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+  onInsert: (afterIdx: number, afterSortOrder: number) => void;
+}) {
   return (
     <>
       {records.map((r, ri) => {
         if (r._conversion) return null;
         const { classifyLeave } = require('@/lib/api');
-        const C   = classifyLeave(r.action || '');
-        const ac  = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
-        const dd  = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
-        const prd = r.prd + (dd ? `<br/><span class="prd-date">${dd}</span>` : '');
+        const C       = classifyLeave(r.action || '');
+        const ac      = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
+        const dd      = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
+        const prd     = r.prd + (dd ? `<br/><span class="prd-date">${dd}</span>` : '');
         const isEmpty = isEmptyRecord(r);
-        const idx = startIdx + ri;
+        const idx     = startIdx + ri;
         const eV = r.setA_earned  ?? 0;
         const aV = r.setA_abs_wp  ?? 0;
         const bV = r.setA_balance ?? 0;
@@ -240,7 +263,10 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: { r
             <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
             <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`}>{r.action}</td>
-            {isAdmin && <RowMenu record={r} idx={idx} type="nt" emp={emp} onRefresh={onRefresh} onEdit={onEdit} />}
+            {isAdmin && (
+              <RowMenu record={r} idx={idx} type="nt" emp={emp}
+                onRefresh={onRefresh} onEdit={onEdit} onInsert={onInsert} />
+            )}
           </tr>
         );
       })}
@@ -248,8 +274,14 @@ function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: { r
   );
 }
 
-function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; type: string; emp: Personnel; onRefresh: () => void; onEdit: (idx: number, record: LeaveRecord) => void }) {
+function RowMenu({ record, idx, type, emp, onRefresh, onEdit, onInsert }: {
+  record: LeaveRecord; idx: number; type: string; emp: Personnel;
+  onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+  onInsert: (afterIdx: number, afterSortOrder: number) => void;
+}) {
   const [open, setOpen] = useState(false);
+
   async function handleDelete() {
     setOpen(false);
     if (!record._record_id) return;
@@ -258,21 +290,21 @@ function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveR
     if (!res.ok) { alert('Delete failed: ' + (res.error || 'Unknown error')); return; }
     onRefresh();
   }
+
   return (
     <td className="no-print" style={{ textAlign: 'center', padding: '0 4px' }}>
       <div className="row-menu-wrap" style={{ position: 'relative', display: 'inline-block' }}>
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-           <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
-{/* ✅ ADD THIS */}
-<button onClick={() => {
-  setOpen(false);
-  const sortOrder = (record as LeaveRecord & { sort_order?: number }).sort_order ?? idx;
-  onInsert(idx, sortOrder);
-}}>➕ Add Row Below</button>
-<div className="menu-div" />
-<button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
+            <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
+            <button onClick={() => {
+              setOpen(false);
+              const sortOrder = (record as LeaveRecord & { sort_order?: number }).sort_order ?? idx;
+              onInsert(idx, sortOrder);
+            }}>➕ Add Row Below</button>
+            <div className="menu-div" />
+            <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
         )}
       </div>
