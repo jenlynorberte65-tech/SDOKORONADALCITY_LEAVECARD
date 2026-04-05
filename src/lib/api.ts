@@ -151,14 +151,11 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
     const end = segEnds[si];
     const dated:   LeaveRecord[] = [];
     const undated: LeaveRecord[] = [];
-
     for (let i = start; i < end; i++) {
       if (recordSortKey(records[i]) !== null) dated.push(records[i]);
       else undated.push(records[i]);
     }
-
     dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
-
     const sorted = [...dated, ...undated];
     sorted.forEach((rec, i) => { records[start + i] = rec; });
   });
