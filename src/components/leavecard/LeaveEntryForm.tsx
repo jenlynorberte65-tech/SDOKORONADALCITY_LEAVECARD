@@ -157,13 +157,19 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
 
     if (!existingId && res.record_id) d._record_id = res.record_id;
     if (existingId) d._record_id = existingId;
+
     const newRecords = [...empRecords];
     if (editIdx > -1) newRecords[editIdx] = d; else newRecords.push(d);
     sortRecordsByDate(newRecords);
+
     if (emp) dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: newRecords, lastEditedAt: new Date().toISOString() } });
 
+    // ✅ FIXED: Recalculate ALL rows and update ALL of them in DB
+    // This is necessary because inserting a row in the middle (after date sort)
+    // shifts the running balance for every row that comes after it.
     const updates = computeRowBalanceUpdates(newRecords, empId, empStatus);
     await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
+
     setSaving(false);
     setSo(''); setPrd(''); setFrText(''); setToText(''); setFrPick(''); setToPick('');
     setAction(''); setNote(''); setEarned(''); setForce('');
@@ -171,7 +177,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     setTrV(''); setTrS('');
     onSaved();
   }
-
   const inputH = { height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', width: '100%', boxSizing: 'border-box' as const };
 const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', cursor: 'pointer', flexShrink: 0, width: 36 };
 
