@@ -191,27 +191,33 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
           <input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} />
         </div>
 
-        {/* Date From */}
-        <div className="f">
-          <label>Date From</label>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-              value={frText} onChange={e => handleFromText(e.target.value)} />
-            <input type="date" style={datePickStyle} value={frPick}
-              onChange={e => handleFromChange(e.target.value)} />
-          </div>
-        </div>
+       {/* Date From */}
+<div className="f">
+  <label>Date From</label>
+  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+    <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+      value={frText} onChange={e => handleFromText(e.target.value)} />
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
+      <input type="date" value={frPick} onChange={e => handleFromChange(e.target.value)}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+    </div>
+  </div>
+</div>
 
-        {/* Date To */}
-        <div className="f">
-          <label>Date To</label>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-              value={toText} onChange={e => handleToText(e.target.value)} />
-            <input type="date" style={datePickStyle} value={toPick} min={frPick}
-              onChange={e => handleToChange(e.target.value)} />
-          </div>
-        </div>
+{/* Date To */}
+<div className="f">
+  <label>Date To</label>
+  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+    <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+      value={toText} onChange={e => handleToText(e.target.value)} />
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
+      <input type="date" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+    </div>
+  </div>
+</div>
 
         {/* Nature of Action */}
         <div className="f">
