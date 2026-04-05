@@ -264,9 +264,15 @@ function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: { record: LeaveR
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-            <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
-            <div className="menu-div" />
-            <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
+           <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
+{/* ✅ ADD THIS */}
+<button onClick={() => {
+  setOpen(false);
+  const sortOrder = (record as LeaveRecord & { sort_order?: number }).sort_order ?? idx;
+  onInsert(idx, sortOrder);
+}}>➕ Add Row Below</button>
+<div className="menu-div" />
+<button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
         )}
       </div>
