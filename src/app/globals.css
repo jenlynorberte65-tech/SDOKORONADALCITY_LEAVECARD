@@ -263,3 +263,9 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
   .stats-row{grid-template-columns:1fr;}
   .sidebar{width:85vw;}
 }
+@media print {
+  @page { size: legal portrait; margin: 10mm; }
+  .no-print { display: none !important; }
+  .page { display: none !important; }
+  .page.printing { display: block !important; }
+}
