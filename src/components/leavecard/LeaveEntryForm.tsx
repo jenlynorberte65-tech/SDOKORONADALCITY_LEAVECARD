@@ -21,12 +21,11 @@ interface Props {
   empRecords: LeaveRecord[];
   editIdx?: number;
   editRecord?: LeaveRecord;
-  insertAfterSortOrder?: number | null;
   onSaved: () => void;
   onCancelEdit?: () => void;
 }
 
-export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, editRecord, insertAfterSortOrder, onSaved, onCancelEdit }: Props) {
+export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, editRecord, onSaved, onCancelEdit }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === empId) as Personnel | undefined;
 
@@ -49,9 +48,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const [trV, setTrV]       = useState(editRecord?.trV ? String(editRecord.trV) : '');
   const [trS, setTrS]       = useState(editRecord?.trS ? String(editRecord.trS) : '');
   const [saving, setSaving] = useState(false);
-
-  const isInsertMode = insertAfterSortOrder != null && editIdx === -1;
-  const btnLabel = editIdx > -1 ? '💾 Save Changes' : isInsertMode ? '💾 Insert Row' : '💾 Save Entry';
+  const btnLabel = editIdx > -1 ? '💾 Save Changes' : '💾 Save Entry';
 
   function isoToDisplay(iso: string): string {
     if (!iso) return '';
@@ -153,24 +150,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
 
     setSaving(true);
     const existingId = editIdx > -1 ? empRecords[editIdx]?._record_id : null;
-
-    // ✅ FIXED: three-way save logic
-    let res;
-    if (existingId) {
-      // Normal edit of existing row
-      res = await apiCall('update_record', { employee_id: empId, record_id: existingId, record: d });
-    } else if (insertAfterSortOrder != null) {
-      // Insert at specific position (Add Row Below)
-      res = await apiCall('insert_record_at', {
-        employee_id: empId,
-        record: d,
-        after_sort_order: insertAfterSortOrder,
-      });
-    } else {
-      // Normal append to end
-      res = await apiCall('save_record', { employee_id: empId, record: d });
-    }
-
+    const res = existingId
+      ? await apiCall('update_record', { employee_id: empId, record_id: existingId, record: d })
+      : await apiCall('save_record',   { employee_id: empId, record: d });
     if (!res.ok) { alert('Save failed: ' + (res.error || 'Unknown error')); setSaving(false); return; }
 
     if (!existingId && res.record_id) d._record_id = res.record_id;
@@ -198,17 +180,14 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   return (
     <div>
       <div className="ig" style={{ marginBottom: 14 }}>
-
         <div className="f">
           <label>Special Order #</label>
           <input type="text" style={inputH} value={so} onChange={e => setSo(e.target.value)} />
         </div>
-
         <div className="f">
           <label>Period Covered</label>
           <input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} />
         </div>
-
         <div className="f">
           <label>Date From</label>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -221,7 +200,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
             </div>
           </div>
         </div>
-
         <div className="f">
           <label>Date To</label>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -234,7 +212,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
             </div>
           </div>
         </div>
-
         <div className="f">
           <label>Nature of Action</label>
           <input list="leaveActionList" style={inputH} value={action}
@@ -243,19 +220,16 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
             {KNOWN_ACTIONS.map(a => <option key={a} value={a} />)}
           </datalist>
         </div>
-
         <div className="f">
           <label>Additional Note</label>
           <input type="text" style={inputH} value={note}
             onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" />
         </div>
-
         <div className="f">
           <label>Value Earned</label>
           <input type="number" style={inputH} step="0.001" value={earned}
             onChange={e => setEarned(e.target.value)} />
         </div>
-
         {(() => {
           const al = action.toLowerCase();
           const isForceAction = (al.includes('force') || al.includes('mandatory')) && !al.includes('disapproved');
@@ -325,9 +299,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-        {(editIdx > -1 || isInsertMode) && (
-          <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>
-        )}
+        {editIdx > -1 && <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>}
         <button className="btn b-pri" onClick={handleSave} disabled={saving}>
           {saving ? '⏳ Saving…' : btnLabel}
         </button>
