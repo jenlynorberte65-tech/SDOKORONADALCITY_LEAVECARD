@@ -29,27 +29,28 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === empId) as Personnel | undefined;
 
-  const [so, setSo]           = useState(editRecord?.so || '');
-  const [prd, setPrd]         = useState(editRecord?.prd || '');
-  const [frText, setFrText]   = useState(editRecord?.from ? isoToDisplay(editRecord.from) : '');
-  const [toText, setToText]   = useState(editRecord?.to   ? isoToDisplay(editRecord.to)   : '');
-  const [frPick, setFrPick]   = useState(editRecord?.from || '');
-  const [toPick, setToPick]   = useState(editRecord?.to   || '');
-  const [action, setAction]   = useState(editRecord?.action || '');
-  const [note, setNote]       = useState('');
-  const [earned, setEarned]   = useState(editRecord?.earned ? String(editRecord.earned) : '');
-  const [force, setForce]     = useState(editRecord?.forceAmount ? String(editRecord.forceAmount) : '');
-  const [monV, setMonV]       = useState(editRecord?.monV ? String(editRecord.monV) : '');
-  const [monS, setMonS]       = useState(editRecord?.monS ? String(editRecord.monS) : '');
-  const [monDV, setMonDV]     = useState(editRecord?.monDV ? String(editRecord.monDV) : '');
-  const [monDS, setMonDS]     = useState(editRecord?.monDS ? String(editRecord.monDS) : '');
-  const [monAmt, setMonAmt]   = useState(editRecord?.monAmount ? String(editRecord.monAmount) : '');
-  const [monDis, setMonDis]   = useState(editRecord?.monDisAmt ? String(editRecord.monDisAmt) : '');
-  const [trV, setTrV]         = useState(editRecord?.trV ? String(editRecord.trV) : '');
-  const [trS, setTrS]         = useState(editRecord?.trS ? String(editRecord.trS) : '');
-  const [saving, setSaving]   = useState(false);
-  const [btnLabel, setBtnLabel] = useState(editIdx > -1 ? '💾 Save Changes' : '💾 Save Entry');
-    function isoToDisplay(iso: string): string {
+  const [so, setSo]         = useState(editRecord?.so || '');
+  const [prd, setPrd]       = useState(editRecord?.prd || '');
+  const [frText, setFrText] = useState(editRecord?.from ? isoToDisplay(editRecord.from) : '');
+  const [toText, setToText] = useState(editRecord?.to   ? isoToDisplay(editRecord.to)   : '');
+  const [frPick, setFrPick] = useState(editRecord?.from || '');
+  const [toPick, setToPick] = useState(editRecord?.to   || '');
+  const [action, setAction] = useState(editRecord?.action || '');
+  const [note, setNote]     = useState('');
+  const [earned, setEarned] = useState(editRecord?.earned ? String(editRecord.earned) : '');
+  const [force, setForce]   = useState(editRecord?.forceAmount ? String(editRecord.forceAmount) : '');
+  const [monV, setMonV]     = useState(editRecord?.monV ? String(editRecord.monV) : '');
+  const [monS, setMonS]     = useState(editRecord?.monS ? String(editRecord.monS) : '');
+  const [monDV, setMonDV]   = useState(editRecord?.monDV ? String(editRecord.monDV) : '');
+  const [monDS, setMonDS]   = useState(editRecord?.monDS ? String(editRecord.monDS) : '');
+  const [monAmt, setMonAmt] = useState(editRecord?.monAmount ? String(editRecord.monAmount) : '');
+  const [monDis, setMonDis] = useState(editRecord?.monDisAmt ? String(editRecord.monDisAmt) : '');
+  const [trV, setTrV]       = useState(editRecord?.trV ? String(editRecord.trV) : '');
+  const [trS, setTrS]       = useState(editRecord?.trS ? String(editRecord.trS) : '');
+  const [saving, setSaving] = useState(false);
+  const [btnLabel]          = useState(editIdx > -1 ? '💾 Save Changes' : '💾 Save Entry');
+
+  function isoToDisplay(iso: string): string {
     if (!iso) return '';
     const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
     return m ? `${m[2]}/${m[3]}/${m[1]}` : iso;
@@ -82,26 +83,36 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     }
   }, [editRecord]);
 
- 
-  const al = action.toLowerCase();
+  const al   = action.toLowerCase();
   const isMon = al.includes('monetization') && !al.includes('disapproved');
-  const isMD  = al.includes('monetization') && al.includes('disapproved');
+  const isMD  = al.includes('monetization') &&  al.includes('disapproved');
   const isTr  = al.includes('from denr');
 
   function handleFromChange(iso: string) {
     setFrPick(iso);
-    if (iso) { setFrText(iso); setToPick(p => p < iso ? '' : p); }
+    if (iso) {
+      setFrText(isoToDisplay(iso));
+      setToPick(p => p < iso ? '' : p);
+      if (toPick && toPick < iso) setToText('');
+    }
   }
+
   function handleToChange(iso: string) {
     if (frPick && iso < frPick) { alert('⚠️ "Date To" cannot be earlier than "Date From".'); return; }
-    setToPick(iso); if (iso) setToText(iso);
+    setToPick(iso);
+    if (iso) setToText(isoToDisplay(iso));
   }
+
   function handleFromText(v: string) {
     const formatted = fmtDateInput(v);
     setFrText(formatted);
     const iso = toISODate(formatted);
-    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) { setFrPick(iso); setToPick(p => p < iso ? '' : p); }
+    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      setFrPick(iso);
+      if (toPick && toPick < iso) { setToPick(''); setToText(''); }
+    }
   }
+
   function handleToText(v: string) {
     const formatted = fmtDateInput(v);
     setToText(formatted);
@@ -113,20 +124,23 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   }
 
   async function handleSave() {
-    const av = action.trim() && note.trim() ? `${action.trim()}, ${note.trim()}` : (action.trim() || note.trim());
+    const av = action.trim() && note.trim()
+      ? `${action.trim()}, ${note.trim()}`
+      : (action.trim() || note.trim());
     const d: LeaveRecord = {
       so, prd,
       from: toISODate(frText) || frPick,
       to:   toISODate(toText) || toPick,
-      spec: '', action: av,
+      spec: '',
+      action: av,
       earned:      parseFloat(earned) || 0,
       forceAmount: (av.toLowerCase().includes('force') || av.toLowerCase().includes('mandatory')) ? (parseFloat(force) || 0) : 0,
-      monV:    isMon ? (parseFloat(monV)   || 0) : 0,
-      monS:    isMon ? (parseFloat(monS)   || 0) : 0,
-      monDV:   isMD  ? (parseFloat(monDV)  || 0) : 0,
-      monDS:   isMD  ? (parseFloat(monDS)  || 0) : 0,
-      monAmount:  isMon ? (parseFloat(monAmt) || 0) : 0,
-      monDisAmt:  isMD  ? (parseFloat(monDis) || 0) : 0,
+      monV:        isMon ? (parseFloat(monV)   || 0) : 0,
+      monS:        isMon ? (parseFloat(monS)   || 0) : 0,
+      monDV:       isMD  ? (parseFloat(monDV)  || 0) : 0,
+      monDS:       isMD  ? (parseFloat(monDS)  || 0) : 0,
+      monAmount:   isMon ? (parseFloat(monAmt) || 0) : 0,
+      monDisAmt:   isMD  ? (parseFloat(monDis) || 0) : 0,
       trV: isTr ? (parseFloat(trV) || 0) : 0,
       trS: isTr ? (parseFloat(trS) || 0) : 0,
     };
@@ -141,7 +155,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       : await apiCall('save_record',   { employee_id: empId, record: d });
     if (!res.ok) { alert('Save failed: ' + (res.error || 'Unknown error')); setSaving(false); return; }
 
-   if (!existingId && res.record_id) d._record_id = res.record_id;
+    if (!existingId && res.record_id) d._record_id = res.record_id;
     if (existingId) d._record_id = existingId;
     const newRecords = [...empRecords];
     if (editIdx > -1) newRecords[editIdx] = d; else newRecords.push(d);
@@ -151,7 +165,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     const updates = computeRowBalanceUpdates(newRecords, empId, empStatus);
     await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
     setSaving(false);
-    // Reset form
     setSo(''); setPrd(''); setFrText(''); setToText(''); setFrPick(''); setToPick('');
     setAction(''); setNote(''); setEarned(''); setForce('');
     setMonV(''); setMonS(''); setMonDV(''); setMonDS(''); setMonAmt(''); setMonDis('');
@@ -160,47 +173,71 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   }
 
   const inputH = { height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', width: '100%', boxSizing: 'border-box' as const };
+  const datePickStyle = { height: 'var(--H)', padding: '0 6px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', cursor: 'pointer', flexShrink: 0 };
 
   return (
     <div>
       <div className="ig" style={{ marginBottom: 14 }}>
-        <div className="f"><label>Period Covered</label><input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} /></div>
 
-       {/* Date From */}
-<div className="f">
-  <label>Date From</label>
-  <div className="date-wrap">
-    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
-      onChange={e => handleFromText(e.target.value)} />
-    <input type="date" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)}
-      style={{ position:'absolute', right:0, top:0, width:32, height:'100%', opacity:0, cursor:'pointer', zIndex:2, border:'none', padding:0 }} />
-    <span className="date-cal-btn" style={{ position:'absolute', right:6, pointerEvents:'none', zIndex:1 }}>📅</span>
-  </div>
-</div>
+        {/* Special Order # */}
+        <div className="f">
+          <label>Special Order #</label>
+          <input type="text" style={inputH} value={so} onChange={e => setSo(e.target.value)} />
+        </div>
 
-       {/* Date To */}
-<div className="f">
-  <label>Date To</label>
-  <div className="date-wrap">
-    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={toText}
-      onChange={e => handleToText(e.target.value)} />
-    <input type="date" className="date-pick-hidden" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)}
-      style={{ position:'absolute', right:0, top:0, width:32, height:'100%', opacity:0, cursor:'pointer', zIndex:2, border:'none', padding:0 }} />
-    <span className="date-cal-btn" style={{ position:'absolute', right:6, pointerEvents:'none', zIndex:1 }}>📅</span>
-  </div>
-</div>
+        {/* Period Covered */}
+        <div className="f">
+          <label>Period Covered</label>
+          <input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} />
+        </div>
+
+        {/* Date From */}
+        <div className="f">
+          <label>Date From</label>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+              value={frText} onChange={e => handleFromText(e.target.value)} />
+            <input type="date" style={datePickStyle} value={frPick}
+              onChange={e => handleFromChange(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Date To */}
+        <div className="f">
+          <label>Date To</label>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+              value={toText} onChange={e => handleToText(e.target.value)} />
+            <input type="date" style={datePickStyle} value={toPick} min={frPick}
+              onChange={e => handleToChange(e.target.value)} />
+          </div>
+        </div>
 
         {/* Nature of Action */}
         <div className="f">
           <label>Nature of Action</label>
-          <input list="leaveActionList" style={inputH} value={action} onChange={e => setAction(e.target.value)} placeholder="Select or type…" autoComplete="off" />
-          <datalist id="leaveActionList">{KNOWN_ACTIONS.map(a => <option key={a} value={a} />)}</datalist>
+          <input list="leaveActionList" style={inputH} value={action}
+            onChange={e => setAction(e.target.value)} placeholder="Select or type…" autoComplete="off" />
+          <datalist id="leaveActionList">
+            {KNOWN_ACTIONS.map(a => <option key={a} value={a} />)}
+          </datalist>
         </div>
-        <div className="f"><label>Additional Note</label><input type="text" style={inputH} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" /></div>
-        <div className="f"><label>Value Earned</label><input type="number" style={inputH} step="0.001" value={earned} onChange={e => setEarned(e.target.value)} /></div>
-       <div className="f"><label>Value Earned</label><input type="number" style={inputH} step="0.001" value={earned} onChange={e => setEarned(e.target.value)} /></div>
 
-        {/* Force/Mandatory Leave — show days-to-add-back only when relevant */}
+        {/* Additional Note */}
+        <div className="f">
+          <label>Additional Note</label>
+          <input type="text" style={inputH} value={note}
+            onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" />
+        </div>
+
+        {/* Value Earned */}
+        <div className="f">
+          <label>Value Earned</label>
+          <input type="number" style={inputH} step="0.001" value={earned}
+            onChange={e => setEarned(e.target.value)} />
+        </div>
+
+        {/* Force/Mandatory Leave conditional field */}
         {(() => {
           const al = action.toLowerCase();
           const isForceAction = (al.includes('force') || al.includes('mandatory')) && !al.includes('disapproved');
@@ -208,17 +245,20 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
           if (isForceAction) return (
             <div className="f hl">
               <label>Days Used (Force/Mandatory Leave)</label>
-              <input type="number" style={inputH} step="1" min="0" max="5" value={force} onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
+              <input type="number" style={inputH} step="1" min="0" max="5" value={force}
+                onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
             </div>
           );
           if (isForceDis) return (
             <div className="f hl" style={{ background: '#fff8e1', borderRadius: 7, padding: '6px 8px' }}>
               <label style={{ color: '#b45309' }}>📥 Days to Add Back (Force Leave Disapproved)</label>
-              <input type="number" style={{ ...inputH, borderColor: '#f59e0b' }} step="1" min="0" value={force} onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
+              <input type="number" style={{ ...inputH, borderColor: '#f59e0b' }} step="1" min="0" value={force}
+                onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
             </div>
           );
           return null;
         })()}
+
       </div>
 
       {/* Monetization */}
@@ -235,6 +275,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
           </div>
         </div>
       )}
+
+      {/* Monetization Disapproved */}
       {isMD && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔄 Monetization (Disapproved) — Add Back</div>
@@ -248,19 +290,31 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
           </div>
         </div>
       )}
+
+      {/* Transfer from DENR */}
       {isTr && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔁 Transfer Balance — Initial Credits from Other Organization</div>
           <div className="ig">
-            <div className="f hl"><label>Vacation Col Balance{empStatus === 'Teaching' ? ' / Balance (T)' : ''}</label><input type="number" style={inputH} step="0.001" value={trV} onChange={e => setTrV(e.target.value)} /></div>
-            {empStatus === 'Non-Teaching' && <div className="f hl"><label>Sick Col Balance</label><input type="number" style={inputH} step="0.001" value={trS} onChange={e => setTrS(e.target.value)} /></div>}
+            <div className="f hl">
+              <label>Vacation Col Balance{empStatus === 'Teaching' ? ' / Balance (T)' : ''}</label>
+              <input type="number" style={inputH} step="0.001" value={trV} onChange={e => setTrV(e.target.value)} />
+            </div>
+            {empStatus === 'Non-Teaching' && (
+              <div className="f hl">
+                <label>Sick Col Balance</label>
+                <input type="number" style={inputH} step="0.001" value={trS} onChange={e => setTrS(e.target.value)} />
+              </div>
+            )}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
         {editIdx > -1 && <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>}
-        <button className="btn b-pri" onClick={handleSave} disabled={saving}>{saving ? '⏳ Saving…' : btnLabel}</button>
+        <button className="btn b-pri" onClick={handleSave} disabled={saving}>
+          {saving ? '⏳ Saving…' : btnLabel}
+        </button>
       </div>
     </div>
   );
