@@ -164,7 +164,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   return (
     <div>
       <div className="ig" style={{ marginBottom: 14 }}>
-        <div className="f"><label>Special Order #</label><input type="text" style={inputH} value={so} onChange={e => setSo(e.target.value)} /></div>
         <div className="f"><label>Period Covered</label><input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} /></div>
 
         {/* Date From */}
