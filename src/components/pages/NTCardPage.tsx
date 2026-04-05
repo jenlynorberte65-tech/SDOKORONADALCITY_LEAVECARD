@@ -78,7 +78,7 @@ export default function NTCardPage({ onBack }: Props) {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-         <button className="btn b-pdf" onClick={() => handleDownload(emp?.name)}>⬇ Download PDF</button>
+         <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
         <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
         </div>
       </div>
