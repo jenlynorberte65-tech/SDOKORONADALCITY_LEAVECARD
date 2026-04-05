@@ -173,8 +173,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
           <div className="date-wrap">
             <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
               onChange={e => handleFromText(e.target.value)} />
-            <input type="date" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)} />
-            <button type="button" className="date-cal-btn" tabIndex={-1}>📅</button>
+           <input type="date" id="frPickInput" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)} />
+            <label htmlFor="frPickInput" className="date-cal-btn" style={{ cursor: 'pointer' }}>📅</label>
           </div>
         </div>
 
@@ -184,8 +184,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
           <div className="date-wrap">
             <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={toText}
               onChange={e => handleToText(e.target.value)} />
-            <input type="date" className="date-pick-hidden" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)} />
-            <button type="button" className="date-cal-btn" tabIndex={-1}>📅</button>
+            <input type="date" id="toPickInput" className="date-pick-hidden" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)} />
+            <label htmlFor="toPickInput" className="date-cal-btn" style={{ cursor: 'pointer' }}>📅</label>
           </div>
         </div>
 
@@ -197,7 +197,27 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         </div>
         <div className="f"><label>Additional Note</label><input type="text" style={inputH} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" /></div>
         <div className="f"><label>Value Earned</label><input type="number" style={inputH} step="0.001" value={earned} onChange={e => setEarned(e.target.value)} /></div>
-        <div className="f"><label>Force Leave Number</label><input type="number" style={inputH} step="1" value={force} onChange={e => setForce(e.target.value)} /></div>
+       <div className="f"><label>Value Earned</label><input type="number" style={inputH} step="0.001" value={earned} onChange={e => setEarned(e.target.value)} /></div>
+
+        {/* Force/Mandatory Leave — show days-to-add-back only when relevant */}
+        {(() => {
+          const al = action.toLowerCase();
+          const isForceAction = (al.includes('force') || al.includes('mandatory')) && !al.includes('disapproved');
+          const isForceDis    = (al.includes('force') || al.includes('mandatory')) &&  al.includes('disapproved');
+          if (isForceAction) return (
+            <div className="f hl">
+              <label>Days Used (Force/Mandatory Leave)</label>
+              <input type="number" style={inputH} step="1" min="0" max="5" value={force} onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
+            </div>
+          );
+          if (isForceDis) return (
+            <div className="f hl" style={{ background: '#fff8e1', borderRadius: 7, padding: '6px 8px' }}>
+              <label style={{ color: '#b45309' }}>📥 Days to Add Back (Force Leave Disapproved)</label>
+              <input type="number" style={{ ...inputH, borderColor: '#f59e0b' }} step="1" min="0" value={force} onChange={e => setForce(e.target.value)} placeholder="e.g. 5" />
+            </div>
+          );
+          return null;
+        })()}
       </div>
 
       {/* Monetization */}
