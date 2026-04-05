@@ -9,7 +9,7 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 // At the top of TCardPage, add this download helper:
-async function handleDownload(empName?: string) {
+async function handleDownload() {
   const el = document.getElementById('ntCard');
   if (!el) return;
   // Dynamically import jsPDF + html2canvas (install: npm i jspdf html2canvas)
