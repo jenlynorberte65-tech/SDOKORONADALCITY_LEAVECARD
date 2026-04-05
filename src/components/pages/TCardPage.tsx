@@ -225,7 +225,12 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
             <td className="bc">{isSetBLeave ? fmtNum(balB) : ''}</td>
             <td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
-            {isAdmin && <TRowMenu record={r} idx={idx} emp={emp} onRefresh={onRefresh} onEdit={() => onEditRow(idx, r)} />}
+            {isAdmin && <TRowMenu 
+  record={r} idx={idx} emp={emp} 
+  onRefresh={onRefresh} 
+  onEdit={() => onEditRow(idx, r)}  // ← change this too
+  onInsert={onInsert}  // ✅ add this
+/>
           </tr>
         );
       })}
@@ -233,7 +238,12 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
   );
 }
 
-function TRowMenu({ record, idx, emp, onRefresh, onEdit }: { record: LeaveRecord; idx: number; emp: Personnel; onRefresh: () => void; onEdit: () => void }) {
+function TRowMenu({ record, idx, emp, onRefresh, onEdit, onInsert }: { 
+  record: LeaveRecord; idx: number; emp: Personnel; 
+  onRefresh: () => void; 
+  onEdit: (idx: number, record: LeaveRecord) => void;  // ✅ fixed
+  onInsert: (afterIdx: number, afterSortOrder: number) => void;  // ✅ added
+}) {
   const [open, setOpen] = useState(false);
   async function handleDelete() {
     setOpen(false);
