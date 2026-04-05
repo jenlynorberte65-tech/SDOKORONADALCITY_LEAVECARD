@@ -78,7 +78,8 @@ export default function NTCardPage({ onBack }: Props) {
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
   const curId = state.curId;
-
+const [insertIdx, setInsertIdx] = useState<number>(-1);
+  const [insertAfterSortOrder, setInsertAfterSortOrder] = useState<number | null>(null);
    const refresh = useCallback(async () => {
     if (!curId) return;
     const res = await apiCall('get_records', { employee_id: curId }, 'GET');
