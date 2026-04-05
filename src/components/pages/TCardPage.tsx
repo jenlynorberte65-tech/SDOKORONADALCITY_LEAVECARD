@@ -56,11 +56,9 @@ function handlePrint() {
 export default function TCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
-  const [refreshKey, setRefreshKey]               = useState(0);
-  const [editIdx, setEditIdx]                     = useState<number>(-1);
-  const [editRecord, setEditRecord]               = useState<LeaveRecord | undefined>(undefined);
-  const [insertIdx, setInsertIdx]                 = useState<number>(-1);
-  const [insertAfterSortOrder, setInsertAfterSortOrder] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editIdx, setEditIdx]       = useState<number>(-1);
+  const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
   const curId   = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -76,31 +74,17 @@ export default function TCardPage({ onBack }: Props) {
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
     setEditRecord(record);
-    setInsertIdx(-1);
-    setInsertAfterSortOrder(null);
-    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
-  }
-
-  function handleInsertRow(afterIdx: number, afterSortOrder: number) {
-    setInsertIdx(afterIdx);
-    setInsertAfterSortOrder(afterSortOrder);
-    setEditIdx(-1);
-    setEditRecord(undefined);
     setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
   }
 
   function handleCancelEdit() {
     setEditIdx(-1);
     setEditRecord(undefined);
-    setInsertIdx(-1);
-    setInsertAfterSortOrder(null);
   }
 
   function handleSaved() {
     setEditIdx(-1);
     setEditRecord(undefined);
-    setInsertIdx(-1);
-    setInsertAfterSortOrder(null);
     refresh();
   }
 
@@ -128,11 +112,7 @@ export default function TCardPage({ onBack }: Props) {
       {!emp.archived && (state.isAdmin || state.isEncoder) && (
         <div className="card no-print" id="tFrm" ref={formRef}>
           <div className="ch amber">
-            {editIdx >= 0
-              ? `✏ Editing Row #${editIdx + 1}`
-              : insertIdx >= 0
-              ? `➕ Inserting Row after Row #${insertIdx + 1}`
-              : '✏ Leave Entry Form'}
+            {editIdx >= 0 ? `✏ Editing Row #${editIdx + 1}` : '✏ Leave Entry Form'}
           </div>
           <div className="cb">
             <LeaveEntryForm
@@ -141,7 +121,6 @@ export default function TCardPage({ onBack }: Props) {
               empRecords={emp.records || []}
               editIdx={editIdx}
               editRecord={editRecord}
-              insertAfterSortOrder={insertAfterSortOrder}
               onSaved={handleSaved}
               onCancelEdit={handleCancelEdit}
             />
@@ -155,16 +134,14 @@ export default function TCardPage({ onBack }: Props) {
         isAdmin={!!(state.isAdmin || state.isEncoder)}
         onRefresh={refresh}
         onEditRow={handleEditRow}
-        onInsert={handleInsertRow}
       />
     </div>
   );
 }
 
-function TCardTable({ emp, isAdmin, onRefresh, onEditRow, onInsert }: {
+function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
   emp: Personnel; isAdmin: boolean; onRefresh: () => void;
   onEditRow: (idx: number, record: LeaveRecord) => void;
-  onInsert: (afterIdx: number, afterSortOrder: number) => void;
 }) {
   const records = emp.records || [];
   const convIdxs: number[] = [];
@@ -178,7 +155,7 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow, onInsert }: {
             <LeaveTableHeader showAction={isAdmin} />
             <tbody>
               <SingleTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0}
-                onRefresh={onRefresh} onEditRow={onEditRow} onInsert={onInsert} />
+                onRefresh={onRefresh} onEditRow={onEditRow} />
             </tbody>
           </table>
         </div>
@@ -217,7 +194,7 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow, onInsert }: {
                 records={segments[segments.length - 1].recs}
                 isAdmin={isAdmin} emp={emp}
                 startIdx={segments[segments.length - 1].startIdx}
-                onRefresh={onRefresh} onEditRow={onEditRow} onInsert={onInsert}
+                onRefresh={onRefresh} onEditRow={onEditRow}
               />
             </tbody>
           </table>
@@ -227,11 +204,10 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow, onInsert }: {
   );
 }
 
-function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow, onInsert }: {
+function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
   records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
   onRefresh: () => void;
   onEditRow: (idx: number, record: LeaveRecord) => void;
-  onInsert: (afterIdx: number, afterSortOrder: number) => void;
 }) {
   return (
     <>
@@ -267,7 +243,7 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow, onI
             <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
             {isAdmin && (
               <TRowMenu record={r} idx={idx} emp={emp}
-                onRefresh={onRefresh} onEditRow={onEditRow} onInsert={onInsert} />
+                onRefresh={onRefresh} onEditRow={onEditRow} />
             )}
           </tr>
         );
@@ -276,11 +252,10 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow, onI
   );
 }
 
-function TRowMenu({ record, idx, emp, onRefresh, onEditRow, onInsert }: {
+function TRowMenu({ record, idx, emp, onRefresh, onEditRow }: {
   record: LeaveRecord; idx: number; emp: Personnel;
   onRefresh: () => void;
   onEditRow: (idx: number, record: LeaveRecord) => void;
-  onInsert: (afterIdx: number, afterSortOrder: number) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -300,11 +275,6 @@ function TRowMenu({ record, idx, emp, onRefresh, onEditRow, onInsert }: {
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
             <button onClick={() => { setOpen(false); onEditRow(idx, record); }}>✏️ Edit Row</button>
-            <button onClick={() => {
-              setOpen(false);
-              const sortOrder = (record as LeaveRecord & { sort_order?: number }).sort_order ?? idx;
-              onInsert(idx, sortOrder);
-            }}>➕ Add Row Below</button>
             <div className="menu-div" />
             <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
