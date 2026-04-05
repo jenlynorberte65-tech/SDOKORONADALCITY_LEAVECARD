@@ -166,8 +166,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       <div className="ig" style={{ marginBottom: 14 }}>
         <div className="f"><label>Period Covered</label><input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} /></div>
 
-        {/* Date From */}
-       <div className="f">
+       {/* Date From */}
+<div className="f">
   <label>Date From</label>
   <div className="date-wrap">
     <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
@@ -178,13 +178,13 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   </div>
 </div>
 
-        {/* Date To */}
-        <div className="f">
-  <label>Date From</label>
+       {/* Date To */}
+<div className="f">
+  <label>Date To</label>
   <div className="date-wrap">
-    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
-      onChange={e => handleFromText(e.target.value)} />
-    <input type="date" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)}
+    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={toText}
+      onChange={e => handleToText(e.target.value)} />
+    <input type="date" className="date-pick-hidden" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)}
       style={{ position:'absolute', right:0, top:0, width:32, height:'100%', opacity:0, cursor:'pointer', zIndex:2, border:'none', padding:0 }} />
     <span className="date-cal-btn" style={{ position:'absolute', right:6, pointerEvents:'none', zIndex:1 }}>📅</span>
   </div>
