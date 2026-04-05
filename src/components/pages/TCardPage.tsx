@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';import { apiCall, fmtD, fmtNum, hz, isEmptyRecord, sortRecordsByDate, computeRowBalanceUpdates } from '@/lib/api';
 import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall, fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
 import { ProfileBlock, LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
@@ -62,14 +62,27 @@ export default function TCardPage({ onBack }: Props) {
   const curId   = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(async () => {
-    if (!curId) return;
-    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
-    if (res.ok && res.records) {
-      dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: res.records } });
-    }
-    setRefreshKey(k => k + 1);
-  }, [curId, dispatch]);
+ const refresh = useCallback(async () => {
+  if (!curId) return;
+  const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+  if (!res.ok || !res.records) return;
+  const sorted = [...res.records];
+  sortRecordsByDate(sorted);
+  const empStatus = emp?.status as 'Teaching' | 'Non-Teaching';
+  const updates = computeRowBalanceUpdates(sorted, curId, empStatus);
+  if (updates.length > 0) {
+    await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
+  }
+  const res2 = await apiCall('get_records', { employee_id: curId }, 'GET');
+  if (!res2.ok || !res2.records) return;
+  const sorted2 = [...res2.records];
+  sortRecordsByDate(sorted2);
+  dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: sorted2 } });
+  setRefreshKey(k => k + 1);
+}, [curId, dispatch, emp]);
+  useEffect(() => {
+  refresh();
+}, []);
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
@@ -121,7 +134,7 @@ export default function TCardPage({ onBack }: Props) {
               empRecords={emp.records || []}
               editIdx={editIdx}
               editRecord={editRecord}
-              onSaved={handleSaved}
+              onSaved={() => { handleCancelEdit(); refresh(); }}
               onCancelEdit={handleCancelEdit}
             />
           </div>
