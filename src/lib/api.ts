@@ -138,7 +138,6 @@ export function recordSortKey(r: LeaveRecord): string | null {
 }
 
 export function sortRecordsByDate(records: LeaveRecord[]): void {
-  // Only sort records that have dates — undated records keep their relative position
   const convIdxs: number[] = [];
   records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
   const segStarts = [0, ...convIdxs.map(i => i + 1)];
@@ -147,15 +146,24 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
   segStarts.forEach((start, si) => {
     const end = segEnds[si];
 
-    // Separate dated and undated records within this segment
-    const dated:   { idx: number; rec: LeaveRecord; key: string }[] = [];
-    const undated: { idx: number; rec: LeaveRecord }[] = [];
+    // Separate dated and undated within this segment
+    const dated:   { rec: LeaveRecord; key: string }[] = [];
+    const undated: LeaveRecord[] = [];
 
     for (let i = start; i < end; i++) {
       const key = recordSortKey(records[i]);
-      if (key !== null) dated.push({ idx: i, rec: records[i], key });
-      else undated.push({ idx: i, rec: records[i] });
+      if (key !== null) dated.push({ rec: records[i], key });
+      else undated.push(records[i]);
     }
+
+    // Sort dated chronologically
+    dated.sort((a, b) => a.key.localeCompare(b.key));
+
+    // Dated rows first, undated (no date entries) at end
+    const allSorted = [...dated.map(d => d.rec), ...undated];
+    allSorted.forEach((rec, i) => { records[start + i] = rec; });
+  });
+}
 
     if (dated.length < 2) return;
 
