@@ -173,7 +173,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   }
 
   const inputH = { height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', width: '100%', boxSizing: 'border-box' as const };
-  const datePickStyle = { height: 'var(--H)', padding: '0 6px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', cursor: 'pointer', flexShrink: 0 };
+const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', cursor: 'pointer', flexShrink: 0, width: 36 };
 
   return (
     <div>
