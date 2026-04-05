@@ -64,25 +64,29 @@ export default function NTCardPage({ onBack }: Props) {
 
 const refresh = useCallback(async () => {
   if (!curId) return;
+const empStatus = (state.db.find(e => e.id === curId)?.status || 'Teaching') as 'Teaching' | 'Non-Teaching';
+  
   const res = await apiCall('get_records', { employee_id: curId }, 'GET');
   if (!res.ok || !res.records) return;
   const sorted = [...res.records];
   sortRecordsByDate(sorted);
-  const empStatus = emp?.status as 'Teaching' | 'Non-Teaching';
+  
   const updates = computeRowBalanceUpdates(sorted, curId, empStatus);
   if (updates.length > 0) {
     await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
   }
+  
   const res2 = await apiCall('get_records', { employee_id: curId }, 'GET');
   if (!res2.ok || !res2.records) return;
   const sorted2 = [...res2.records];
   sortRecordsByDate(sorted2);
   dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: sorted2 } });
   setRefreshKey(k => k + 1);
-}, [curId, dispatch, emp]);
-  useEffect(() => {
-  refresh();
-}, []);
+}, [curId, dispatch, state.db]);
+
+useEffect(() => {
+  if (curId) refresh();
+}, [curId]);
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
