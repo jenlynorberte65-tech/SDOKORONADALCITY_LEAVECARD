@@ -157,7 +157,17 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
       else undated.push(records[i]);
     }
     dated.sort((a, b) => a.key.localeCompare(b.key));
-    const allSorted = [...dated.map(d => d.rec), ...undated];
+    const datedPositions: number[] = [];
+for (let i = start; i < end; i++) {
+  if (recordSortKey(records[i]) !== null) datedPositions.push(i);
+}
+const datedRecs = datedPositions.map(i => records[i]);
+datedRecs.sort((a, b) => {
+  const ka = recordSortKey(a)!;
+  const kb = recordSortKey(b)!;
+  return ka.localeCompare(kb);
+});
+datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
     allSorted.forEach((rec, i) => { records[start + i] = rec; });
   });
 }
