@@ -9,8 +9,8 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 // At the top of TCardPage, add this download helper:
-async function handleDownload() {
-  const el = document.getElementById('tCard');
+async function handleDownload(empName?: string) {
+  const el = document.getElementById('ntCard');
   if (!el) return;
   // Dynamically import jsPDF + html2canvas (install: npm i jspdf html2canvas)
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
@@ -71,8 +71,8 @@ export default function TCardPage({ onBack }: Props) {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-         <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
-<button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
+        <button className="btn b-pdf" onClick={() => handleDownload(emp?.name)}>⬇ Download PDF</button>
+        <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
       </div>
      </div>
       <div className="card" id="tCard">
