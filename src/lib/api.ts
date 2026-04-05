@@ -149,29 +149,20 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
 
   segStarts.forEach((start, si) => {
     const end = segEnds[si];
-    const dated:   { rec: LeaveRecord; key: string }[] = [];
-    const undated: LeaveRecord[] = [];
-    for (let i = start; i < end; i++) {
-      const key = recordSortKey(records[i]);
-      if (key !== null) dated.push({ rec: records[i], key });
-      else undated.push(records[i]);
-    }
-    dated.sort((a, b) => a.key.localeCompare(b.key));
     const datedPositions: number[] = [];
-for (let i = start; i < end; i++) {
-  if (recordSortKey(records[i]) !== null) datedPositions.push(i);
-}
-const datedRecs = datedPositions.map(i => records[i]);
-datedRecs.sort((a, b) => {
-  const ka = recordSortKey(a)!;
-  const kb = recordSortKey(b)!;
-  return ka.localeCompare(kb);
-});
-datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
-    allSorted.forEach((rec, i) => { records[start + i] = rec; });
+    for (let i = start; i < end; i++) {
+      if (recordSortKey(records[i]) !== null) datedPositions.push(i);
+    }
+    if (datedPositions.length < 2) return;
+    const datedRecs = datedPositions.map(i => records[i]);
+    datedRecs.sort((a, b) => {
+      const ka = recordSortKey(a)!;
+      const kb = recordSortKey(b)!;
+      return ka.localeCompare(kb);
+    });
+    datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
   });
 }
-
 export function isEmptyRecord(r: LeaveRecord): boolean {
   if (r._conversion) return false;
   return !r.action && !r.so && !r.prd && !r.from && !r.to && !r.spec
