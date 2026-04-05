@@ -149,15 +149,21 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
 
   segStarts.forEach((start, si) => {
     const end = segEnds[si];
-    const dated:   LeaveRecord[] = [];
-    const undated: LeaveRecord[] = [];
+
+    // Collect positions of dated records only
+    const datedPositions: number[] = [];
     for (let i = start; i < end; i++) {
-      if (recordSortKey(records[i]) !== null) dated.push(records[i]);
-      else undated.push(records[i]);
+      if (recordSortKey(records[i]) !== null) datedPositions.push(i);
     }
-    dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
-    const sorted = [...dated, ...undated];
-    sorted.forEach((rec, i) => { records[start + i] = rec; });
+    if (datedPositions.length < 2) return; // nothing to sort
+
+    // Sort only the dated records by date
+    const datedRecs = datedPositions.map(i => records[i]);
+    datedRecs.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
+
+    // Put sorted dated records BACK into their original dated positions
+    // Undated records remain untouched at their own positions
+    datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
   });
 }
 export function isEmptyRecord(r: LeaveRecord): boolean {
