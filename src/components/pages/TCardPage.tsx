@@ -24,7 +24,7 @@ async function handleDownload(empName?: string) {
   const pdfW = pdf.internal.pageSize.getWidth();
   const pdfH = (canvas.height * pdfW) / canvas.width;
   pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-  pdf.save(`LeaveCard_${emp?.name || 'employee'}.pdf`);
+ pdf.save(`LeaveCard_${empName || 'employee'}.pdf`);
 }
 
 function handlePrint() {
