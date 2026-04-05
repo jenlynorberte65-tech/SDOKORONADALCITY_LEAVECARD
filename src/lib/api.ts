@@ -164,21 +164,11 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
       else undated.push(r);
     }
 
-    // Sort dated records oldest → newest
+    // Sort dated records oldest → newest by period date
     dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
 
     // Order: anchor (first row) → dated rows → undated rows (pinned to bottom)
     const sorted = [anchor, ...dated, ...undated];
-    sorted.forEach((rec, i) => { records[start + i] = rec; });
-  });
-}
-
-    // Sort dated records by date oldest → newest
-    dated.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
-
-    // Always: undated first (in original order), then dated rows
-    // This keeps opening balance + no-date rows at top, dated rows at bottom
-    const sorted = [...undated, ...dated];
     sorted.forEach((rec, i) => { records[start + i] = rec; });
   });
 }
