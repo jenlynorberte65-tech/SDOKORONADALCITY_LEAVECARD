@@ -15,19 +15,18 @@ const KNOWN_ACTIONS = [
   'From DENR Region 12',
 ];
 
-// REPLACE:
 interface Props {
   empId: string;
   empStatus: 'Teaching' | 'Non-Teaching';
   empRecords: LeaveRecord[];
   editIdx?: number;
   editRecord?: LeaveRecord;
-  insertAfterSortOrder?: number | null;  // ✅ ADD THIS
+  insertAfterSortOrder?: number | null;
   onSaved: () => void;
   onCancelEdit?: () => void;
 }
 
-export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, editRecord, onSaved, onCancelEdit }: Props) {
+export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, editRecord, insertAfterSortOrder, onSaved, onCancelEdit }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === empId) as Personnel | undefined;
 
@@ -50,7 +49,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const [trV, setTrV]       = useState(editRecord?.trV ? String(editRecord.trV) : '');
   const [trS, setTrS]       = useState(editRecord?.trS ? String(editRecord.trS) : '');
   const [saving, setSaving] = useState(false);
-  const [btnLabel]          = useState(editIdx > -1 ? '💾 Save Changes' : '💾 Save Entry');
+
+  const isInsertMode = insertAfterSortOrder != null && editIdx === -1;
+  const btnLabel = editIdx > -1 ? '💾 Save Changes' : isInsertMode ? '💾 Insert Row' : '💾 Save Entry';
 
   function isoToDisplay(iso: string): string {
     if (!iso) return '';
@@ -85,7 +86,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     }
   }, [editRecord]);
 
-  const al   = action.toLowerCase();
+  const al    = action.toLowerCase();
   const isMon = al.includes('monetization') && !al.includes('disapproved');
   const isMD  = al.includes('monetization') &&  al.includes('disapproved');
   const isTr  = al.includes('from denr');
@@ -152,9 +153,24 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
 
     setSaving(true);
     const existingId = editIdx > -1 ? empRecords[editIdx]?._record_id : null;
-    const res = existingId
-      ? await apiCall('update_record', { employee_id: empId, record_id: existingId, record: d })
-      : await apiCall('save_record',   { employee_id: empId, record: d });
+
+    // ✅ FIXED: three-way save logic
+    let res;
+    if (existingId) {
+      // Normal edit of existing row
+      res = await apiCall('update_record', { employee_id: empId, record_id: existingId, record: d });
+    } else if (insertAfterSortOrder != null) {
+      // Insert at specific position (Add Row Below)
+      res = await apiCall('insert_record_at', {
+        employee_id: empId,
+        record: d,
+        after_sort_order: insertAfterSortOrder,
+      });
+    } else {
+      // Normal append to end
+      res = await apiCall('save_record', { employee_id: empId, record: d });
+    }
+
     if (!res.ok) { alert('Save failed: ' + (res.error || 'Unknown error')); setSaving(false); return; }
 
     if (!existingId && res.record_id) d._record_id = res.record_id;
@@ -166,9 +182,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
 
     if (emp) dispatch({ type: 'UPDATE_EMPLOYEE', payload: { ...emp, records: newRecords, lastEditedAt: new Date().toISOString() } });
 
-    // ✅ FIXED: Recalculate ALL rows and update ALL of them in DB
-    // This is necessary because inserting a row in the middle (after date sort)
-    // shifts the running balance for every row that comes after it.
     const updates = computeRowBalanceUpdates(newRecords, empId, empStatus);
     await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
 
@@ -179,54 +192,49 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     setTrV(''); setTrS('');
     onSaved();
   }
+
   const inputH = { height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', width: '100%', boxSizing: 'border-box' as const };
-const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', cursor: 'pointer', flexShrink: 0, width: 36 };
 
   return (
     <div>
       <div className="ig" style={{ marginBottom: 14 }}>
 
-        {/* Special Order # */}
         <div className="f">
           <label>Special Order #</label>
           <input type="text" style={inputH} value={so} onChange={e => setSo(e.target.value)} />
         </div>
 
-        {/* Period Covered */}
         <div className="f">
           <label>Period Covered</label>
           <input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} />
         </div>
 
-       {/* Date From */}
-<div className="f">
-  <label>Date From</label>
-  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-    <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-      value={frText} onChange={e => handleFromText(e.target.value)} />
-    <div style={{ position: 'relative', flexShrink: 0 }}>
-      <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
-      <input type="date" value={frPick} onChange={e => handleFromChange(e.target.value)}
-        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
-    </div>
-  </div>
-</div>
+        <div className="f">
+          <label>Date From</label>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+              value={frText} onChange={e => handleFromText(e.target.value)} />
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
+              <input type="date" value={frPick} onChange={e => handleFromChange(e.target.value)}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+            </div>
+          </div>
+        </div>
 
-{/* Date To */}
-<div className="f">
-  <label>Date To</label>
-  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-    <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-      value={toText} onChange={e => handleToText(e.target.value)} />
-    <div style={{ position: 'relative', flexShrink: 0 }}>
-      <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
-      <input type="date" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)}
-        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
-    </div>
-  </div>
-</div>
+        <div className="f">
+          <label>Date To</label>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
+              value={toText} onChange={e => handleToText(e.target.value)} />
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
+              <input type="date" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+            </div>
+          </div>
+        </div>
 
-        {/* Nature of Action */}
         <div className="f">
           <label>Nature of Action</label>
           <input list="leaveActionList" style={inputH} value={action}
@@ -236,21 +244,18 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
           </datalist>
         </div>
 
-        {/* Additional Note */}
         <div className="f">
           <label>Additional Note</label>
           <input type="text" style={inputH} value={note}
             onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" />
         </div>
 
-        {/* Value Earned */}
         <div className="f">
           <label>Value Earned</label>
           <input type="number" style={inputH} step="0.001" value={earned}
             onChange={e => setEarned(e.target.value)} />
         </div>
 
-        {/* Force/Mandatory Leave conditional field */}
         {(() => {
           const al = action.toLowerCase();
           const isForceAction = (al.includes('force') || al.includes('mandatory')) && !al.includes('disapproved');
@@ -271,10 +276,8 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
           );
           return null;
         })()}
-
       </div>
 
-      {/* Monetization */}
       {isMon && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">💰 Monetization — Deduct Amounts</div>
@@ -289,7 +292,6 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
         </div>
       )}
 
-      {/* Monetization Disapproved */}
       {isMD && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔄 Monetization (Disapproved) — Add Back</div>
@@ -304,7 +306,6 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
         </div>
       )}
 
-      {/* Transfer from DENR */}
       {isTr && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔁 Transfer Balance — Initial Credits from Other Organization</div>
@@ -324,7 +325,9 @@ const datePickStyle = { height: 'var(--H)', padding: '0 4px', border: '1.5px sol
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-        {editIdx > -1 && <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>}
+        {(editIdx > -1 || isInsertMode) && (
+          <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>
+        )}
         <button className="btn b-pri" onClick={handleSave} disabled={saving}>
           {saving ? '⏳ Saving…' : btnLabel}
         </button>
