@@ -167,26 +167,28 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         <div className="f"><label>Period Covered</label><input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} /></div>
 
         {/* Date From */}
-        <div className="f">
-          <label>Date From</label>
-          <div className="date-wrap">
-            <input type="text" className="date-text" style={{...inputH, position:'relative', zIndex:3}} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
-              onChange={e => handleFromText(e.target.value)} />
-           <input type="date" id="frPickInput" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)} />
-            <label htmlFor="frPickInput" className="date-cal-btn" style={{ cursor: 'pointer' }}>📅</label>
-          </div>
-        </div>
+       <div className="f">
+  <label>Date From</label>
+  <div className="date-wrap">
+    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
+      onChange={e => handleFromText(e.target.value)} />
+    <input type="date" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)}
+      style={{ position:'absolute', right:0, top:0, width:32, height:'100%', opacity:0, cursor:'pointer', zIndex:2, border:'none', padding:0 }} />
+    <span className="date-cal-btn" style={{ position:'absolute', right:6, pointerEvents:'none', zIndex:1 }}>📅</span>
+  </div>
+</div>
 
         {/* Date To */}
         <div className="f">
-          <label>Date To</label>
-          <div className="date-wrap">
-            <input type="text" className="date-text" style={{...inputH, position:'relative', zIndex:3}} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
-            onChange={e => handleFromText(e.target.value)} />
-            <input type="date" id="toPickInput" className="date-pick-hidden" value={toPick} min={frPick} onChange={e => handleToChange(e.target.value)} />
-            <label htmlFor="toPickInput" className="date-cal-btn" style={{ cursor: 'pointer' }}>📅</label>
-          </div>
-        </div>
+  <label>Date From</label>
+  <div className="date-wrap">
+    <input type="text" className="date-text" style={inputH} placeholder="mm/dd/yyyy" maxLength={10} value={frText}
+      onChange={e => handleFromText(e.target.value)} />
+    <input type="date" className="date-pick-hidden" value={frPick} onChange={e => handleFromChange(e.target.value)}
+      style={{ position:'absolute', right:0, top:0, width:32, height:'100%', opacity:0, cursor:'pointer', zIndex:2, border:'none', padding:0 }} />
+    <span className="date-cal-btn" style={{ position:'absolute', right:6, pointerEvents:'none', zIndex:1 }}>📅</span>
+  </div>
+</div>
 
         {/* Nature of Action */}
         <div className="f">
