@@ -10,23 +10,52 @@ import type { LeaveRecord, Personnel } from '@/types';
 interface Props { onBack: () => void; }
 // At the top of TCardPage, add this download helper:
 async function handleDownload() {
-  const el = document.getElementById('ntCard');
-  if (!el) return;
-  // Dynamically import jsPDF + html2canvas (install: npm i jspdf html2canvas)
+  const profileEl = document.getElementById('tCard');
+  const tableEl   = document.getElementById('tTblCard');
+  if (!profileEl) return;
+
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true });
-  const imgData = canvas.toDataURL('image/png');
-  // Legal paper: 8.5 x 14 inches → 215.9 x 355.6 mm
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 355.6] });
+  const pdf  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW = pdf.internal.pageSize.getWidth();
-  const pdfH = (canvas.height * pdfW) / canvas.width;
-  pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-pdf.save(`LeaveCard_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
+  const margin  = 5;
+  const usableW = pdfW - margin * 2;
+  let cursorY   = margin;
 
+  async function addElement(el: HTMLElement) {
+    const prev = el.style.cssText;
+    el.style.boxShadow  = 'none';
+    el.style.border     = 'none';
+    el.style.borderRadius = '0';
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      ignoreElements: (node) => {
+        const n = node as HTMLElement;
+        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+      },
+    });
+    el.style.cssText = prev;
+    const imgData = canvas.toDataURL('image/png');
+    const imgH    = (canvas.height * usableW) / canvas.width;
+    const pageH   = pdf.internal.pageSize.getHeight();
+
+    if (cursorY + imgH > pageH - margin) {
+      pdf.addPage();
+      cursorY = margin;
+    }
+    pdf.addImage(imgData, 'PNG', margin, cursorY, usableW, imgH);
+    cursorY += imgH + 3;
+  }
+  if (profileEl) await addElement(profileEl);
+  if (tableEl)   await addElement(tableEl);
+
+  pdf.save(`LeaveCard_T_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
 function handlePrint() {
   document.querySelector('.page.on')?.classList.add('printing');
   window.print();
