@@ -59,7 +59,11 @@ export function classifyLeave(act: string): LeaveClassification {
 export function calcDays(r: LeaveRecord): number {
   const a = (r.action || '').toLowerCase();
   const isForceAction = (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved');
-  if (isForceAction && r.forceAmount > 0) return r.forceAmount;
+  const isForceDis    = (a.includes('force') || a.includes('mandatory')) &&  a.includes('disapproved');
+
+  // ✅ For both approved and disapproved force leave, use forceAmount if set
+  if ((isForceAction || isForceDis) && r.forceAmount > 0) return r.forceAmount;
+
   if (r.from && r.to) {
     let count = 0;
     const start = new Date(r.from + 'T00:00:00');
