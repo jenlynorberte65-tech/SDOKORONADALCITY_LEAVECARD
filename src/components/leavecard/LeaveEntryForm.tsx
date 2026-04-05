@@ -15,12 +15,14 @@ const KNOWN_ACTIONS = [
   'From DENR Region 12',
 ];
 
+// REPLACE:
 interface Props {
   empId: string;
   empStatus: 'Teaching' | 'Non-Teaching';
   empRecords: LeaveRecord[];
   editIdx?: number;
   editRecord?: LeaveRecord;
+  insertAfterSortOrder?: number | null;  // ✅ ADD THIS
   onSaved: () => void;
   onCancelEdit?: () => void;
 }
