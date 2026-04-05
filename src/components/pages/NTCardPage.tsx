@@ -64,7 +64,7 @@ export default function NTCardPage({ onBack }: Props) {
 
 const refresh = useCallback(async () => {
   if (!curId) return;
-const empStatus = (state.db.find(e => e.id === curId)?.status || 'Teaching') as 'Teaching' | 'Non-Teaching';
+const empStatus = (state.db.find(e => e.id === curId)?.status || 'Non-Teaching') as 'Teaching' | 'Non-Teaching';
   
   const res = await apiCall('get_records', { employee_id: curId }, 'GET');
   if (!res.ok || !res.records) return;
