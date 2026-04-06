@@ -74,17 +74,6 @@ async function handleDownload() {
   pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-async function handlePrint() {
-  const pdf = await capturePageAsPDF('NT');
-  if (!pdf) return;
-  const blob = pdf.output('blob');
-  const url  = URL.createObjectURL(blob);
-  const win  = window.open(url, '_blank');
-  if (win) {
-    win.onload = () => { win.focus(); win.print(); };
-  }
-}
-
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
