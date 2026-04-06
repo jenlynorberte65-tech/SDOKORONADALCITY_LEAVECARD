@@ -9,66 +9,107 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-async function capturePageAsPDF(): Promise<import('jspdf').jsPDF | null> {
-  const pageEl = document.querySelector('.page.on') as HTMLElement;
-  if (!pageEl) return null;
-
+/**
+ * Captures every .card element inside .page.on that is NOT .no-print,
+ * renders each one at full scroll height so no rows are clipped,
+ * strips .no-print children (e.g. action column buttons) from the canvas,
+ * and assembles a multi-page jsPDF document.
+ */
+async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
 
-  const noPrintEls = pageEl.querySelectorAll('.no-print');
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none');
+  const cards = Array.from(
+    document.querySelectorAll<HTMLElement>('.page.on .card')
+  ).filter(el => !el.classList.contains('no-print'));
 
-  const canvas = await html2canvas(pageEl, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    windowWidth: pageEl.scrollWidth,
-    windowHeight: pageEl.scrollHeight,
-  });
-
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = '');
+  if (cards.length === 0) return null;
 
   const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW    = pdf.internal.pageSize.getWidth();
   const pdfH    = pdf.internal.pageSize.getHeight();
-  const margin  = 8;
+  const margin  = 6;
   const usableW = pdfW - margin * 2;
-  const ratio   = canvas.width / usableW;
-  let yPos      = 0;
+  let   firstEl = true;
 
-  while (yPos < canvas.height) {
-    const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width  = canvas.width;
-    sliceCanvas.height = sliceH;
-    sliceCanvas.getContext('2d')!.drawImage(
-      canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH
-    );
-    if (yPos > 0) pdf.addPage();
-    pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
-    yPos += sliceH;
+  for (const card of cards) {
+    // Force the card to render at its full scrollable height
+    const savedStyle = card.getAttribute('style') || '';
+    card.style.overflow  = 'visible';
+    card.style.maxHeight = 'none';
+    card.style.height    = 'auto';
+
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      width:        card.scrollWidth,
+      height:       card.scrollHeight,
+      windowWidth:  card.scrollWidth,
+      windowHeight: card.scrollHeight,
+      ignoreElements: (node) => {
+        const n = node as HTMLElement;
+        // Hide action column buttons and any no-print elements from the canvas
+        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+      },
+    });
+
+    // Restore original style
+    card.setAttribute('style', savedStyle);
+
+    const ratio = canvas.width / usableW;
+    let   yPos  = 0;
+
+    while (yPos < canvas.height) {
+      const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
+
+      const slice        = document.createElement('canvas');
+      slice.width        = canvas.width;
+      slice.height       = Math.ceil(sliceH);
+      slice.getContext('2d')!.drawImage(
+        canvas,
+        0, yPos, canvas.width, sliceH,
+        0, 0,    canvas.width, sliceH
+      );
+
+      if (!firstEl || yPos > 0) pdf.addPage();
+      firstEl = false;
+
+      pdf.addImage(
+        slice.toDataURL('image/png'),
+        'PNG',
+        margin, margin,
+        usableW, sliceH / ratio
+      );
+
+      yPos += sliceH;
+    }
   }
 
   return pdf;
 }
 
 async function handleDownload() {
-  const pdf = await capturePageAsPDF();
+  const pdf = await buildPDF();
   if (!pdf) return;
   pdf.save(`LeaveCard_T_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 async function handlePrint() {
-  const pdf = await capturePageAsPDF();
+  const pdf = await buildPDF();
   if (!pdf) return;
   const blob = pdf.output('blob');
   const url  = URL.createObjectURL(blob);
   const win  = window.open(url, '_blank');
   if (win) {
-    win.onload = () => { win.focus(); win.print(); };
+    win.addEventListener('load', () => {
+      win.focus();
+      win.print();
+    });
   }
 }
 
@@ -249,19 +290,19 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
       {records.map((r, ri) => {
         if (r._conversion) return null;
         const { classifyLeave } = require('@/lib/api');
-        const C          = classifyLeave(r.action || '');
-        const isE        = r.earned > 0;
-        const ac         = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
-        const dd         = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
-        const isEmpty    = isEmptyRecord(r);
-        const idx        = startIdx + ri;
-        const earned     = r.setA_earned  ?? 0;
-        const aV         = r.setA_abs_wp  ?? 0;
-        const balA       = r.setA_balance ?? 0;
-        const wV         = r.setA_wop     ?? 0;
-        const aS         = r.setB_abs_wp  ?? 0;
-        const balB       = r.setB_balance ?? 0;
-        const wS         = r.setB_wop     ?? 0;
+        const C           = classifyLeave(r.action || '');
+        const isE         = r.earned > 0;
+        const ac          = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
+        const dd          = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
+        const isEmpty     = isEmptyRecord(r);
+        const idx         = startIdx + ri;
+        const earned      = r.setA_earned  ?? 0;
+        const aV          = r.setA_abs_wp  ?? 0;
+        const balA        = r.setA_balance ?? 0;
+        const wV          = r.setA_wop     ?? 0;
+        const aS          = r.setB_abs_wp  ?? 0;
+        const balB        = r.setB_balance ?? 0;
+        const wS          = r.setB_wop     ?? 0;
         const isSetBLeave = balA === 0 && balB > 0;
         return (
           <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
