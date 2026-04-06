@@ -56,10 +56,8 @@ async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
     slice.width  = canvas.width;
     slice.height = Math.ceil(sliceH);
     slice.getContext('2d')!.drawImage(canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-
     if (!first) pdf.addPage();
     first = false;
-
     pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
     yPos += sliceH;
   }
@@ -76,29 +74,189 @@ async function handleDownload() {
 async function handlePrint() {
   const pageEl = document.querySelector<HTMLElement>('.page.on');
   if (!pageEl) return;
-  const clone = pageEl.cloneNode(true) as HTMLElement;
 
+  const clone = pageEl.cloneNode(true) as HTMLElement;
   clone.querySelectorAll<HTMLElement>('.no-print').forEach(el => el.remove());
   clone.querySelectorAll<HTMLElement>('button').forEach(el => el.remove());
 
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Leave Card</title>
-        <link rel="stylesheet" href="${window.location.origin}/globals.css" />
-        <style>
-          body { margin: 0; padding: 12px; font-family: sans-serif; background: #fff; }
-          @media print { body { margin: 0; padding: 0; } }
-        </style>
-      </head>
-      <body>${clone.innerHTML}</body>
-    </html>
-  `);
+
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Leave Card</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    :root {
+      --g0:#081910;--g1:#123d2c;--g2:#1a5c42;--g3:#1e7050;--g4:#e8f5ee;
+      --gd:#c8e6d6;--au:#b07d2c;--au2:#fdf5e6;--au3:#f0d28a;
+      --nb:#1e3a6e;--am:#8c4a10;--rd:#7f1d1d;--pu:#4e1d95;
+      --cha:#1e2530;--sl:#3d4d60;--mu:#6b7a8d;--br:#ced6de;--dv:#e8edf2;
+      --bg:#ebede9;--cd:#f8faf8;--wh:#ffffff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 10px;
+      color: var(--cha);
+      background: white;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ── Print header ── */
+    .print-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 10px 16px 8px;
+      border-bottom: 3px solid var(--g2);
+      margin-bottom: 10px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-header img {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .print-header-text { text-align: center; }
+    .print-header-text .republic {
+      font-size: 8px;
+      font-weight: 600;
+      color: #555;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .print-header-text .agency {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--g1);
+      margin: 2px 0;
+    }
+    .print-header-text .division {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--g2);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #f8faf8;
+      border-radius: 8px;
+      border: 1px solid var(--br);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .ch {
+      padding: 8px 16px;
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .ch.grn { background: linear-gradient(90deg, var(--g0), var(--g2)); }
+    .ch.center { justify-content: center; }
+    .cb { padding: 12px 16px; }
+
+    /* ── Profile grid ── */
+    .pg { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .pi label {
+      font-size: 7px; font-weight: 600; color: var(--mu);
+      text-transform: uppercase; letter-spacing: .6px;
+      display: block; margin-bottom: 2px;
+    }
+    .pi span {
+      font-size: 9.5px; font-weight: 500; color: var(--cha);
+      display: block; padding-bottom: 4px;
+      border-bottom: 1px solid var(--dv);
+    }
+
+    /* ── Table ── */
+    .tw { overflow: visible; width: 100%; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; }
+    thead th {
+      background: var(--g0);
+      color: white;
+      font-size: 8.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      border: 1px solid #3a4a58;
+      vertical-align: middle;
+      text-align: center;
+      padding: 4px 5px;
+      line-height: 1.2;
+      white-space: nowrap;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .ths { background: #2a3a4c !important; color: #a8b8c8 !important; font-size: 8px !important; }
+    .tha { background: var(--g2) !important; border-color: #1e6b4c !important; }
+    .thb { background: var(--nb) !important; border-color: #243f7a !important; }
+    tbody td {
+      border: 1px solid var(--br);
+      padding: 4px 4px;
+      text-align: center;
+      white-space: nowrap;
+      font-size: 10px;
+    }
+    tbody td:nth-child(2), tbody td:last-child { white-space: normal; word-break: break-word; text-align: left; padding-left: 6px; }
+    tbody tr:nth-child(even) { background: #f4f8f5; }
+    .bc { font-weight: 700; background: var(--au2) !important; color: #6b4a10; font-size: 10px; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .nc { white-space: nowrap; }
+    .rdc { color: var(--rd); font-weight: 700; }
+    .puc { color: var(--pu); font-weight: 700; }
+    .remarks-cell { font-size: 10px; text-align: left; padding-left: 5px !important; white-space: normal; word-break: break-word; line-height: 1.4; }
+    .period-cell { text-align: left; padding-left: 5px !important; line-height: 1.4; font-size: 10px; font-weight: 700; white-space: normal; word-break: break-word; }
+    .prd-date { font-size: 9.5px; font-weight: 700; display: block; margin-top: 1px; }
+
+    /* ── Era rows ── */
+    .era-fwd-row { background: #fff9f0 !important; }
+    .era-fwd-row td { color: #8a5a0a !important; font-weight: 700 !important; font-style: italic; }
+    .era-old-toggle { display: none !important; }
+    .era-old-body { display: block !important; }
+
+    @page { size: 8.5in 13in portrait; margin: 10mm 8mm; }
+    @media print {
+      body { font-size: 10px !important; }
+      thead { display: table-header-group; }
+      .card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-header">
+    <img src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg"
+         onerror="this.src='https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'" />
+    <div class="print-header-text">
+      <div class="republic">Republic of the Philippines &bull; Department of Education</div>
+      <div class="agency">SDO City of Koronadal &mdash; Region XII</div>
+      <div class="division">Employee Leave Record</div>
+    </div>
+  </div>
+  ${clone.innerHTML}
+</body>
+</html>`);
+
   win.document.close();
-  win.addEventListener('load', () => { win.focus(); win.print(); });
+  win.addEventListener('load', () => {
+    win.focus();
+    win.print();
+  });
 }
 
 function handleLogout(onLogout: () => void) {
@@ -155,7 +313,7 @@ export default function UserPage({ onLogout }: Props) {
             <tbody>
               {isTeaching
                 ? <TeachingRows records={emp.records || []} />
-                : <NTRows       records={emp.records || []} />}
+                : <NTRows records={emp.records || []} />}
             </tbody>
           </table>
         </div>
