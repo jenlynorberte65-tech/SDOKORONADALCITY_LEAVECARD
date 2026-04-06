@@ -9,48 +9,67 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-async function handleDownload() {
-  const profileEl = document.getElementById('ntCard');
-  const tableEl   = document.getElementById('ntTblCard');
-  if (!profileEl) return;
+async function capturePageAsPDF(): Promise<import('jspdf').jsPDF | null> {
+  const pageEl = document.querySelector('.page.on') as HTMLElement;
+  if (!pageEl) return null;
+
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
+
+  const noPrintEls = pageEl.querySelectorAll('.no-print');
+  noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none');
+
+  const canvas = await html2canvas(pageEl, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    windowWidth: pageEl.scrollWidth,
+    windowHeight: pageEl.scrollHeight,
+  });
+
+  noPrintEls.forEach(el => (el as HTMLElement).style.display = '');
+
   const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW    = pdf.internal.pageSize.getWidth();
-  const margin  = 5;
+  const pdfH    = pdf.internal.pageSize.getHeight();
+  const margin  = 8;
   const usableW = pdfW - margin * 2;
-  let cursorY   = margin;
-  async function addElement(el: HTMLElement) {
-    const prev = el.style.cssText;
-    el.style.boxShadow    = 'none';
-    el.style.border       = 'none';
-    el.style.borderRadius = '0';
-    const canvas = await html2canvas(el, {
-      scale: 2, useCORS: true, backgroundColor: '#ffffff',
-      ignoreElements: (node) => {
-        const n = node as HTMLElement;
-        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
-      },
-    });
-    el.style.cssText = prev;
-    const imgData = canvas.toDataURL('image/png');
-    const imgH    = (canvas.height * usableW) / canvas.width;
-    const pageH   = pdf.internal.pageSize.getHeight();
-    if (cursorY + imgH > pageH - margin) { pdf.addPage(); cursorY = margin; }
-    pdf.addImage(imgData, 'PNG', margin, cursorY, usableW, imgH);
-    cursorY += imgH + 3;
+  const ratio   = canvas.width / usableW;
+  let yPos      = 0;
+
+  while (yPos < canvas.height) {
+    const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width  = canvas.width;
+    sliceCanvas.height = sliceH;
+    sliceCanvas.getContext('2d')!.drawImage(
+      canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH
+    );
+    if (yPos > 0) pdf.addPage();
+    pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
+    yPos += sliceH;
   }
-  if (profileEl) await addElement(profileEl);
-  if (tableEl)   await addElement(tableEl);
+
+  return pdf;
+}
+
+async function handleDownload() {
+  const pdf = await capturePageAsPDF();
+  if (!pdf) return;
   pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-function handlePrint() {
-  document.querySelector('.page.on')?.classList.add('printing');
-  window.print();
-  setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1500);
+async function handlePrint() {
+  const pdf = await capturePageAsPDF();
+  if (!pdf) return;
+  const blob = pdf.output('blob');
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => { win.focus(); win.print(); };
+  }
 }
 
 export default function NTCardPage({ onBack }: Props) {
@@ -62,31 +81,28 @@ export default function NTCardPage({ onBack }: Props) {
   const formRef = useRef<HTMLDivElement>(null);
   const curId   = state.curId;
 
-const refresh = useCallback(async () => {
-  if (!curId) return;
-const empStatus = (state.db.find(e => e.id === curId)?.status || 'Non-Teaching') as 'Teaching' | 'Non-Teaching';
-  
-  const res = await apiCall('get_records', { employee_id: curId }, 'GET');
-  if (!res.ok || !res.records) return;
-  const sorted = [...res.records];
-  sortRecordsByDate(sorted);
-  
-  const updates = computeRowBalanceUpdates(sorted, curId, empStatus);
-  if (updates.length > 0) {
-    await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
-  }
-  
-  const res2 = await apiCall('get_records', { employee_id: curId }, 'GET');
-  if (!res2.ok || !res2.records) return;
-  const sorted2 = [...res2.records];
-  sortRecordsByDate(sorted2);
-  dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: sorted2 } });
-  setRefreshKey(k => k + 1);
-}, [curId, dispatch, state.db]);
+  const refresh = useCallback(async () => {
+    if (!curId) return;
+    const empStatus = (state.db.find(e => e.id === curId)?.status || 'Non-Teaching') as 'Teaching' | 'Non-Teaching';
+    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (!res.ok || !res.records) return;
+    const sorted = [...res.records];
+    sortRecordsByDate(sorted);
+    const updates = computeRowBalanceUpdates(sorted, curId, empStatus);
+    if (updates.length > 0) {
+      await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
+    }
+    const res2 = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (!res2.ok || !res2.records) return;
+    const sorted2 = [...res2.records];
+    sortRecordsByDate(sorted2);
+    dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: sorted2 } });
+    setRefreshKey(k => k + 1);
+  }, [curId, dispatch, state.db]);
 
-useEffect(() => {
-  if (curId) refresh();
-}, [curId]);
+  useEffect(() => {
+    if (curId) refresh();
+  }, [curId]);
 
   function handleEditRow(idx: number, record: LeaveRecord) {
     setEditIdx(idx);
@@ -99,11 +115,11 @@ useEffect(() => {
     setEditRecord(undefined);
   }
 
- function handleSaved() {
-  setEditIdx(-1);
-  setEditRecord(undefined);
-  refresh();
-}
+  function handleSaved() {
+    setEditIdx(-1);
+    setEditRecord(undefined);
+    setTimeout(() => refresh(), 500);
+  }
 
   if (!emp) return (
     <div className="card">
