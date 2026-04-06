@@ -174,8 +174,8 @@ tbody tr:nth-child(even){background:#f4f8f5;}
 tbody tr:hover{background:#e8f2ec;transition:background .12s;}
 .bc{font-weight:700;background:var(--au2)!important;color:#6b4a10;font-family:'JetBrains Mono',monospace;font-size:11.5px;white-space:nowrap;}
 .remarks-cell{font-size:14px;text-align:left;padding-left:5px!important;white-space:normal;word-break:break-word;line-height:1.5;}
-.prd-date{font-size:12px;color:var(--cha);font-weight:500;display:block;margin-top:1px;}
-.period-cell{text-align:left;padding-left:5px!important;line-height:1.5;font-size:12px;white-space:normal;word-break:break-word;color:var(--cha);}
+.prd-date{font-size:11.5px;color:var(--cha);font-weight:500;display:block;margin-top:1px;}
+.period-cell{text-align:left;padding-left:5px!important;line-height:1.5;font-size:11.5px;white-space:normal;word-break:break-word;color:var(--cha);}
 .nc{font-family:'JetBrains Mono',monospace;white-space:nowrap;}
 .rdc{color:var(--rd);font-weight:700;}
 .puc{color:var(--pu);font-weight:700;}
@@ -269,17 +269,17 @@ tbody tr:hover{background:#e8f2ec;transition:background .12s;}
   .pi span { font-size: 9px !important; }
 
   .tw { overflow: visible !important; max-height: none !important; width: 100% !important; display: block !important; }
-  table { font-size: 9px !important; width: 100% !important; table-layout: auto !important; border-collapse: collapse !important; }
-  thead th { font-size: 8.5px !important; padding: 3px !important; white-space: nowrap !important; line-height: 1.3 !important; background: var(--g0) !important; color: white !important; }
-  thead th.ths { font-size: 8px !important; padding: 2px !important; }
+  table { font-size: 10px !important; width: 100% !important; table-layout: auto !important; border-collapse: collapse !important; }
+  thead th { font-size: 9.5px !important; padding: 3px !important; white-space: nowrap !important; line-height: 1.3 !important; background: var(--g0) !important; color: white !important; }
+  thead th.ths { font-size: 9px !important; padding: 2px !important; }
   thead th.tha { background: var(--g2) !important; }
   thead th.thb { background: var(--nb) !important; }
-  tbody td { padding: 3px !important; font-size: 9px !important; white-space: nowrap !important; border: 1px solid #ced6de !important; }
-  .remarks-cell { font-size: 9px !important; white-space: normal !important; word-break: break-word !important; padding: 4px 5px !important; }
-  .prd-date { font-size: 9px !important; display: block !important; }
-  .period-cell { font-size: 12px !important; text-align: left !important; padding-left: 5px !important; white-space: normal !important; }
-  .bc { font-size: 9px !important; font-weight: 700 !important; background: var(--au2) !important; color: #6b4a10 !important; }
-  .nc { font-size: 9px !important; }
+  tbody td { padding: 3px !important; font-size: 10px !important; white-space: nowrap !important; border: 1px solid #ced6de !important; }
+  .remarks-cell { font-size: 10px !important; white-space: normal !important; word-break: break-word !important; padding: 4px 5px !important; }
+  .prd-date { font-size: 10px !important; display: block !important; }
+  .period-cell { font-size: 10px !important; text-align: left !important; padding-left: 5px !important; white-space: normal !important; }
+  .bc { font-size: 10px !important; font-weight: 700 !important; background: var(--au2) !important; color: #6b4a10 !important; }
+  .nc { font-size: 10px !important; }
   .rdc { color: var(--rd) !important; font-weight: 700 !important; }
   .puc { color: var(--pu) !important; font-weight: 700 !important; }
 
