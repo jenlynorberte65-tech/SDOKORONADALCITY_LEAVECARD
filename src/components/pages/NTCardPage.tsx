@@ -9,85 +9,60 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-/**
- * Captures every .card element inside .page.on that is NOT .no-print,
- * renders each one at full scroll height so no rows are clipped,
- * strips .no-print children (e.g. action column buttons) from the canvas,
- * and assembles a multi-page jsPDF document.
- */
 async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
 
-  const cards = Array.from(
-    document.querySelectorAll<HTMLElement>('.page.on .card')
-  ).filter(el => !el.classList.contains('no-print'));
-
-  if (cards.length === 0) return null;
+  const pageEl = document.querySelector<HTMLElement>('.page.on');
+  if (!pageEl) return null;
 
   const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW    = pdf.internal.pageSize.getWidth();
   const pdfH    = pdf.internal.pageSize.getHeight();
   const margin  = 6;
   const usableW = pdfW - margin * 2;
-  let   firstEl = true;
 
-  for (const card of cards) {
-    // Force the card to render at its full scrollable height
-    const savedStyle = card.getAttribute('style') || '';
-    card.style.overflow  = 'visible';
-    card.style.maxHeight = 'none';
-    card.style.height    = 'auto';
+  const savedStyle = pageEl.getAttribute('style') || '';
+  pageEl.style.overflow  = 'visible';
+  pageEl.style.maxHeight = 'none';
+  pageEl.style.height    = 'auto';
 
-    const canvas = await html2canvas(card, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      width:        card.scrollWidth,
-      height:       card.scrollHeight,
-      windowWidth:  card.scrollWidth,
-      windowHeight: card.scrollHeight,
-      ignoreElements: (node) => {
-        const n = node as HTMLElement;
-        // Hide action column buttons and any no-print elements from the canvas
-        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
-      },
-    });
+  const canvas = await html2canvas(pageEl, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    scrollX: 0,
+    scrollY: -window.scrollY,
+    width:        pageEl.scrollWidth,
+    height:       pageEl.scrollHeight,
+    windowWidth:  pageEl.scrollWidth,
+    windowHeight: pageEl.scrollHeight,
+    ignoreElements: (node) => {
+      const n = node as HTMLElement;
+      return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+    },
+  });
 
-    // Restore original style
-    card.setAttribute('style', savedStyle);
+  pageEl.setAttribute('style', savedStyle);
 
-    const ratio = canvas.width / usableW;
-    let   yPos  = 0;
+  const ratio = canvas.width / usableW;
+  let yPos = 0;
+  let first = true;
 
-    while (yPos < canvas.height) {
-      const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
+  while (yPos < canvas.height) {
+    const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
+    const slice  = document.createElement('canvas');
+    slice.width  = canvas.width;
+    slice.height = Math.ceil(sliceH);
+    slice.getContext('2d')!.drawImage(canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
 
-      const slice        = document.createElement('canvas');
-      slice.width        = canvas.width;
-      slice.height       = Math.ceil(sliceH);
-      slice.getContext('2d')!.drawImage(
-        canvas,
-        0, yPos, canvas.width, sliceH,
-        0, 0,    canvas.width, sliceH
-      );
+    if (!first) pdf.addPage();
+    first = false;
 
-      if (!firstEl || yPos > 0) pdf.addPage();
-      firstEl = false;
-
-      pdf.addImage(
-        slice.toDataURL('image/png'),
-        'PNG',
-        margin, margin,
-        usableW, sliceH / ratio
-      );
-
-      yPos += sliceH;
-    }
+    pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
+    yPos += sliceH;
   }
 
   return pdf;
@@ -100,17 +75,31 @@ async function handleDownload() {
 }
 
 async function handlePrint() {
-  const pdf = await buildPDF();
-  if (!pdf) return;
-  const blob = pdf.output('blob');
-  const url  = URL.createObjectURL(blob);
-  const win  = window.open(url, '_blank');
-  if (win) {
-    win.addEventListener('load', () => {
-      win.focus();
-      win.print();
-    });
-  }
+  const pageEl = document.querySelector<HTMLElement>('.page.on');
+  if (!pageEl) return;
+  const clone = pageEl.cloneNode(true) as HTMLElement;
+
+  clone.querySelectorAll<HTMLElement>('.no-print').forEach(el => el.remove());
+  clone.querySelectorAll<HTMLElement>('button').forEach(el => el.remove());
+
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>NT Leave Card</title>
+        <link rel="stylesheet" href="${window.location.origin}/globals.css" />
+        <style>
+          body { margin: 0; padding: 12px; font-family: sans-serif; background: #fff; }
+          @media print { body { margin: 0; padding: 0; } }
+        </style>
+      </head>
+      <body>${clone.innerHTML}</body>
+    </html>
+  `);
+  win.document.close();
+  win.addEventListener('load', () => { win.focus(); win.print(); });
 }
 
 export default function NTCardPage({ onBack }: Props) {
