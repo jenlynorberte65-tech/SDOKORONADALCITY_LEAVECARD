@@ -9,57 +9,59 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
+async function capturePageAsPDF(filename: string) {
+  const pageEl = document.querySelector('.page.on') as HTMLElement;
+  if (!pageEl) return;
+
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
 
-  const pageEl = document.querySelector<HTMLElement>('.page.on');
-  if (!pageEl) return null;
+  // Legal paper at 96dpi: 8.5in x 13in = 816 x 1248px
+  const LEGAL_W_PX = 816;
 
-  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
-  const pdfW    = pdf.internal.pageSize.getWidth();
-  const pdfH    = pdf.internal.pageSize.getHeight();
-  const margin  = 6;
-  const usableW = pdfW - margin * 2;
+  const noPrintEls = pageEl.querySelectorAll('.no-print');
+  noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none');
 
-  const savedStyle = pageEl.getAttribute('style') || '';
-  pageEl.style.overflow  = 'visible';
-  pageEl.style.maxHeight = 'none';
-  pageEl.style.height    = 'auto';
+  // Save original width and force legal paper width for capture
+  const origWidth = pageEl.style.width;
+  const origMaxWidth = pageEl.style.maxWidth;
+  pageEl.style.width = `${LEGAL_W_PX}px`;
+  pageEl.style.maxWidth = `${LEGAL_W_PX}px`;
 
   const canvas = await html2canvas(pageEl, {
     scale: 2,
     useCORS: true,
     backgroundColor: '#ffffff',
-    scrollX: 0,
-    scrollY: -window.scrollY,
-    width:        pageEl.scrollWidth,
-    height:       pageEl.scrollHeight,
-    windowWidth:  pageEl.scrollWidth,
-    windowHeight: pageEl.scrollHeight,
-    ignoreElements: (node) => {
-      const n = node as HTMLElement;
-      return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
-    },
+    width: LEGAL_W_PX,
+    windowWidth: LEGAL_W_PX,
   });
 
-  pageEl.setAttribute('style', savedStyle);
+  // Restore original styles
+  pageEl.style.width = origWidth;
+  pageEl.style.maxWidth = origMaxWidth;
+  noPrintEls.forEach(el => (el as HTMLElement).style.display = '');
 
-  const ratio = canvas.width / usableW;
-  let yPos = 0;
-  let first = true;
+  // Legal paper: 215.9mm x 330.2mm
+  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
+  const pdfW    = pdf.internal.pageSize.getWidth();
+  const pdfH    = pdf.internal.pageSize.getHeight();
+  const margin  = 6;
+  const usableW = pdfW - margin * 2;
+  const ratio   = canvas.width / usableW;
+  let yPos      = 0;
 
   while (yPos < canvas.height) {
     const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
-    const slice  = document.createElement('canvas');
-    slice.width  = canvas.width;
-    slice.height = Math.ceil(sliceH);
-    slice.getContext('2d')!.drawImage(canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-    if (!first) pdf.addPage();
-    first = false;
-    pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width  = canvas.width;
+    sliceCanvas.height = sliceH;
+    sliceCanvas.getContext('2d')!.drawImage(
+      canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH
+    );
+    if (yPos > 0) pdf.addPage();
+    pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
     yPos += sliceH;
   }
 
@@ -67,9 +69,20 @@ async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
 }
 
 async function handleDownload() {
-  const pdf = await buildPDF();
+  const pdf = await capturePageAsPDF('NT');
   if (!pdf) return;
-  pdf.save(`LeaveCard_T_${new Date().toISOString().slice(0, 10)}.pdf`);
+  pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+async function handlePrint() {
+  const pdf = await capturePageAsPDF('NT');
+  if (!pdf) return;
+  const blob = pdf.output('blob');
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => { win.focus(); win.print(); };
+  }
 }
 
 const PRINT_STYLES = `
