@@ -8,6 +8,57 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onLogout: () => void; }
 
+async function handleDownload() {
+  const profileEl = document.getElementById('userProfileCard');
+  const tableEl   = document.getElementById('userTableCard');
+  if (!profileEl) return;
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas'),
+  ]);
+  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
+  const pdfW    = pdf.internal.pageSize.getWidth();
+  const margin  = 5;
+  const usableW = pdfW - margin * 2;
+  let cursorY   = margin;
+
+  async function addElement(el: HTMLElement) {
+    const prev = el.style.cssText;
+    el.style.boxShadow    = 'none';
+    el.style.border       = 'none';
+    el.style.borderRadius = '0';
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
+      ignoreElements: (node) => {
+        const n = node as HTMLElement;
+        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+      },
+    });
+    el.style.cssText = prev;
+    const imgData = canvas.toDataURL('image/png');
+    const imgH    = (canvas.height * usableW) / canvas.width;
+    const pageH   = pdf.internal.pageSize.getHeight();
+    if (cursorY + imgH > pageH - margin) { pdf.addPage(); cursorY = margin; }
+    pdf.addImage(imgData, 'PNG', margin, cursorY, usableW, imgH);
+    cursorY += imgH + 3;
+  }
+
+  await addElement(profileEl);
+  if (tableEl) await addElement(tableEl);
+  pdf.save(`LeaveCard_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+function handlePrint() {
+  document.querySelector('.page.on')?.classList.add('printing');
+  window.print();
+  setTimeout(() => document.querySelector('.page.printing')?.classList.remove('printing'), 1500);
+}
+
+function handleLogout(onLogout: () => void) {
+  if (!confirm('Are you sure you want to log out?')) return;
+  onLogout();
+}
+
 export default function UserPage({ onLogout }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
@@ -26,15 +77,15 @@ export default function UserPage({ onLogout }: Props) {
   return (
     <div>
       <div className="user-action-bar no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
-        <button className="nb out" onClick={onLogout} style={{ height: 40, padding: '0 18px', fontSize: 12, fontWeight: 600 }}>🔒 Logout</button>
+        <button className="nb out" onClick={() => handleLogout(onLogout)} style={{ height: 40, padding: '0 18px', fontSize: 12, fontWeight: 600 }}>🔒 Logout</button>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn b-pdf" onClick={() => window.print()}>⬇ Download PDF</button>
-          <button className="btn b-prn" onClick={() => window.print()}>🖨 Print</button>
+          <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
+          <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
         </div>
       </div>
 
       {/* Profile header card */}
-      <div className="card">
+      <div className="card" id="userProfileCard">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px 10px', borderBottom: '2px solid var(--g2)', background: 'linear-gradient(90deg,var(--g0),var(--g1))' }}>
           <img src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg" alt="SDO"
             style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,.3)', flexShrink: 0 }}
@@ -52,14 +103,14 @@ export default function UserPage({ onLogout }: Props) {
       </div>
 
       {/* Leave card table */}
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0 }} id="userTableCard">
         <div className="tw">
           <table>
             <LeaveTableHeader showAction={false} />
             <tbody>
               {isTeaching
                 ? <TeachingRows records={emp.records || []} />
-                : <NTRows      records={emp.records || []} />}
+                : <NTRows       records={emp.records || []} />}
             </tbody>
           </table>
         </div>
