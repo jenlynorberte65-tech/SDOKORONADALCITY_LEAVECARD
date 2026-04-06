@@ -9,68 +9,12 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
-  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-    import('jspdf'),
-    import('html2canvas'),
-  ]);
-
-  const pageEl = document.querySelector<HTMLElement>('.page.on');
-  if (!pageEl) return null;
-
-  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
-  const pdfW    = pdf.internal.pageSize.getWidth();
-  const pdfH    = pdf.internal.pageSize.getHeight();
-  const margin  = 6;
-  const usableW = pdfW - margin * 2;
-
-  const savedStyle = pageEl.getAttribute('style') || '';
-  pageEl.style.overflow  = 'visible';
-  pageEl.style.maxHeight = 'none';
-  pageEl.style.height    = 'auto';
-
-  const canvas = await html2canvas(pageEl, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    scrollX: 0,
-    scrollY: -window.scrollY,
-    width:        pageEl.scrollWidth,
-    height:       pageEl.scrollHeight,
-    windowWidth:  pageEl.scrollWidth,
-    windowHeight: pageEl.scrollHeight,
-    ignoreElements: (node) => {
-      const n = node as HTMLElement;
-      return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
-    },
-  });
-
-  pageEl.setAttribute('style', savedStyle);
-
-  const ratio = canvas.width / usableW;
-  let yPos = 0;
-  let first = true;
-
-  while (yPos < canvas.height) {
-    const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
-    const slice  = document.createElement('canvas');
-    slice.width  = canvas.width;
-    slice.height = Math.ceil(sliceH);
-    slice.getContext('2d')!.drawImage(canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-    if (!first) pdf.addPage();
-    first = false;
-    pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
-    yPos += sliceH;
-  }
-
-  return pdf;
-}
-
-async function handleDownload() {
-  const pdf = await buildPDF();
-  if (!pdf) return;
-  pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
+// Legal paper: 8.5in × 13in at 96 dpi = 816 × 1248px
+const LEGAL_W_PX  = 816;
+const LEGAL_H_PX  = 1248;
+const PDF_W_MM    = 215.9;
+const PDF_H_MM    = 330.2;
+const MARGIN_MM   = 6;
 
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -81,13 +25,25 @@ const PRINT_STYLES = `
     --cha:#1e2530;--mu:#6b7a8d;--br:#ced6de;--dv:#e8edf2;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', system-ui, sans-serif; font-size: 10px; color: var(--cha); background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 10px;
+    color: var(--cha);
+    background: white;
+    width: ${LEGAL_W_PX}px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
-  .print-header { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px 16px 8px; border-bottom: 3px solid var(--g2); margin-bottom: 10px; }
+  .print-header {
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; padding: 10px 16px 8px;
+    border-bottom: 3px solid var(--g2); margin-bottom: 10px;
+  }
   .print-header img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
   .print-header-text { text-align: center; }
   .print-header-text .republic { font-size: 8px; font-weight: 600; color: #555; letter-spacing: 1px; text-transform: uppercase; }
-  .print-header-text .agency { font-size: 13px; font-weight: 700; color: var(--g1); margin: 2px 0; }
+  .print-header-text .agency   { font-size: 13px; font-weight: 700; color: var(--g1); margin: 2px 0; }
   .print-header-text .division { font-size: 10px; font-weight: 600; color: var(--g2); }
 
   .card { background: #f8faf8; border-radius: 8px; border: 1px solid var(--br); margin-bottom: 12px; overflow: hidden; }
@@ -98,12 +54,17 @@ const PRINT_STYLES = `
 
   .pg { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
   .pi label { font-size: 7px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .6px; display: block; margin-bottom: 2px; }
-  .pi span { font-size: 9.5px; font-weight: 500; color: var(--cha); display: block; padding-bottom: 4px; border-bottom: 1px solid var(--dv); }
+  .pi span  { font-size: 9.5px; font-weight: 500; color: var(--cha); display: block; padding-bottom: 4px; border-bottom: 1px solid var(--dv); }
 
   .tw { overflow: visible; width: 100%; }
   table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; }
   thead { display: table-header-group; }
-  thead th { background: var(--g0); color: white; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; border: 1px solid #3a4a58; vertical-align: middle; text-align: center; padding: 4px 5px; line-height: 1.2; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead th {
+    background: var(--g0); color: white; font-size: 8.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .4px; border: 1px solid #3a4a58;
+    vertical-align: middle; text-align: center; padding: 4px 5px; line-height: 1.2;
+    white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   .ths { background: #2a3a4c !important; color: #a8b8c8 !important; font-size: 8px !important; }
   .tha { background: var(--g2) !important; border-color: #1e6b4c !important; }
   .thb { background: var(--nb) !important; border-color: #243f7a !important; }
@@ -114,17 +75,126 @@ const PRINT_STYLES = `
   .nc { white-space: nowrap; }
   .rdc { color: var(--rd); font-weight: 700; }
   .puc { color: var(--pu); font-weight: 700; }
-  .remarks-cell { font-size: 10px; text-align: left; padding-left: 5px !important; white-space: normal; word-break: break-word; line-height: 1.4; }
-  .period-cell { text-align: left; padding-left: 5px !important; line-height: 1.4; font-size: 10px; font-weight: 700; white-space: normal; word-break: break-word; }
-  .prd-date { font-size: 9.5px; font-weight: 700; display: block; margin-top: 1px; }
-  .era-fwd-row { background: #fff9f0 !important; }
+  .remarks-cell  { font-size: 10px; text-align: left; padding-left: 5px !important; white-space: normal; word-break: break-word; line-height: 1.4; }
+  .period-cell   { text-align: left; padding-left: 5px !important; line-height: 1.4; font-size: 10px; font-weight: 700; white-space: normal; word-break: break-word; }
+  .prd-date      { font-size: 9.5px; font-weight: 700; display: block; margin-top: 1px; }
+  .era-fwd-row   { background: #fff9f0 !important; }
   .era-fwd-row td { color: #8a5a0a !important; font-weight: 700 !important; font-style: italic; }
   .era-old-toggle { display: none !important; }
-  .era-old-body { display: block !important; }
+  .era-old-body  { display: block !important; }
   .era-new-section { page-break-before: always; }
 
   @page { size: 8.5in 13in portrait; margin: 10mm 8mm; }
 `;
+
+/** Build an offscreen iframe with print-header + card HTML, capture it, slice into legal-paper PDF pages. */
+async function buildPrintStyledPDF(pageEl: HTMLElement): Promise<import('jspdf').jsPDF | null> {
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas'),
+  ]);
+
+  // Clone and strip no-print / buttons
+  const clone = pageEl.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll<HTMLElement>('.no-print').forEach(el => el.remove());
+  clone.querySelectorAll<HTMLElement>('button').forEach(el => el.remove());
+
+  // Build offscreen iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${LEGAL_W_PX}px;height:${LEGAL_H_PX}px;border:none;visibility:hidden;`;
+  document.body.appendChild(iframe);
+
+  const iDoc = iframe.contentDocument!;
+  iDoc.open();
+  iDoc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>${PRINT_STYLES}</style>
+</head>
+<body>
+  <div class="print-header">
+    <img src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg"
+         crossorigin="anonymous"
+         onerror="this.src='https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'" />
+    <div class="print-header-text">
+      <div class="republic">Republic of the Philippines &bull; Department of Education</div>
+      <div class="agency">SDO City of Koronadal &mdash; Region XII</div>
+      <div class="division">Schools Division Office &mdash; Employee Leave Record</div>
+    </div>
+  </div>
+  ${clone.innerHTML}
+</body>
+</html>`);
+  iDoc.close();
+
+  // Wait for fonts / images
+  await new Promise<void>(res => {
+    if (iframe.contentDocument?.readyState === 'complete') { res(); return; }
+    iframe.addEventListener('load', () => res(), { once: true });
+    setTimeout(res, 1500); // fallback
+  });
+  await new Promise(res => setTimeout(res, 600)); // let fonts paint
+
+  const body = iDoc.body as HTMLElement;
+  const fullH = body.scrollHeight;
+
+  const canvas = await html2canvas(body, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: '#ffffff',
+    width:        LEGAL_W_PX,
+    height:       fullH,
+    windowWidth:  LEGAL_W_PX,
+    windowHeight: fullH,
+    scrollX: 0,
+    scrollY: 0,
+  });
+
+  document.body.removeChild(iframe);
+
+  // Slice canvas into legal-paper PDF pages
+  const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PDF_W_MM, PDF_H_MM] });
+  const usableW = PDF_W_MM - MARGIN_MM * 2;
+  const usableH = PDF_H_MM - MARGIN_MM * 2;
+  const ratio   = canvas.width / usableW;           // px-per-mm
+  const slicePx = usableH * ratio;                  // canvas px that fit one page
+  let yPos      = 0;
+  let first     = true;
+
+  while (yPos < canvas.height) {
+    const remaining = canvas.height - yPos;
+    const thisSlice = Math.min(slicePx, remaining);
+
+    const slice = document.createElement('canvas');
+    slice.width  = canvas.width;
+    slice.height = Math.ceil(thisSlice);
+    slice.getContext('2d')!.drawImage(
+      canvas, 0, yPos, canvas.width, thisSlice, 0, 0, canvas.width, thisSlice
+    );
+
+    if (!first) pdf.addPage();
+    first = false;
+
+    pdf.addImage(
+      slice.toDataURL('image/png'), 'PNG',
+      MARGIN_MM, MARGIN_MM,
+      usableW, thisSlice / ratio
+    );
+    yPos += thisSlice;
+  }
+
+  return pdf;
+}
+
+async function handleDownload() {
+  const pageEl = document.querySelector<HTMLElement>('.page.on');
+  if (!pageEl) return;
+  const pdf = await buildPrintStyledPDF(pageEl);
+  if (!pdf) return;
+  pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
 
 async function handlePrint() {
   const pageEl = document.querySelector<HTMLElement>('.page.on');
