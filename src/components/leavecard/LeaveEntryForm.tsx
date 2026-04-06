@@ -194,7 +194,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
             <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
               value={frText} onChange={e => handleFromText(e.target.value)} />
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
+<button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>📅</button>
               <input type="date" value={frPick} onChange={e => handleFromChange(e.target.value)}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
             </div>
