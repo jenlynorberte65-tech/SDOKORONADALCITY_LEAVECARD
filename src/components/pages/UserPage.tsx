@@ -1,165 +1,322 @@
-
 'use client';
-import { useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { apiCall, fmtD, fmtNum, hz, isEmptyRecord, sortRecordsByDate, computeRowBalanceUpdates } from '@/lib/api';
 import { useAppStore } from '@/hooks/useAppStore';
-import { apiCall } from '@/lib/api';
-import { ProfileBlock, LeaveTableHeader, computeNTRow, computeTRow } from '@/components/leavecard/LeaveCardTable';
-import { fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
+import { ProfileBlock, LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
+import { LeaveEntryForm } from '@/components/leavecard/LeaveEntryForm';
+import { EraSection } from '@/components/leavecard/EraSection';
 import type { LeaveRecord, Personnel } from '@/types';
 
-interface Props { onLogout: () => void; }
+interface Props { onBack: () => void; }
 
-async function capturePageAsPDF(): Promise<import('jspdf').jsPDF | null> {
-  const pageEl = document.querySelector('.page.on') as HTMLElement;
-  if (!pageEl) return null;
-
+/**
+ * Captures every .card element inside .page.on that is NOT .no-print,
+ * renders each one at full scroll height so no rows are clipped,
+ * strips .no-print children (e.g. action column buttons) from the canvas,
+ * and assembles a multi-page jsPDF document.
+ */
+async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
 
-  const noPrintEls = pageEl.querySelectorAll('.no-print');
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none');
+  const cards = Array.from(
+    document.querySelectorAll<HTMLElement>('.page.on .card')
+  ).filter(el => !el.classList.contains('no-print'));
 
-  const canvas = await html2canvas(pageEl, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    windowWidth: pageEl.scrollWidth,
-    windowHeight: pageEl.scrollHeight,
-  });
-
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = '');
+  if (cards.length === 0) return null;
 
   const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW    = pdf.internal.pageSize.getWidth();
   const pdfH    = pdf.internal.pageSize.getHeight();
-  const margin  = 8;
+  const margin  = 6;
   const usableW = pdfW - margin * 2;
-  const ratio   = canvas.width / usableW;
-  let yPos      = 0;
+  let   firstEl = true;
 
-  while (yPos < canvas.height) {
-    const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width  = canvas.width;
-    sliceCanvas.height = sliceH;
-    sliceCanvas.getContext('2d')!.drawImage(
-      canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH
-    );
-    if (yPos > 0) pdf.addPage();
-    pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
-    yPos += sliceH;
+  for (const card of cards) {
+    // Force the card to render at its full scrollable height
+    const savedStyle = card.getAttribute('style') || '';
+    card.style.overflow  = 'visible';
+    card.style.maxHeight = 'none';
+    card.style.height    = 'auto';
+
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      width:        card.scrollWidth,
+      height:       card.scrollHeight,
+      windowWidth:  card.scrollWidth,
+      windowHeight: card.scrollHeight,
+      ignoreElements: (node) => {
+        const n = node as HTMLElement;
+        // Hide action column buttons and any no-print elements from the canvas
+        return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+      },
+    });
+
+    // Restore original style
+    card.setAttribute('style', savedStyle);
+
+    const ratio = canvas.width / usableW;
+    let   yPos  = 0;
+
+    while (yPos < canvas.height) {
+      const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
+
+      const slice        = document.createElement('canvas');
+      slice.width        = canvas.width;
+      slice.height       = Math.ceil(sliceH);
+      slice.getContext('2d')!.drawImage(
+        canvas,
+        0, yPos, canvas.width, sliceH,
+        0, 0,    canvas.width, sliceH
+      );
+
+      if (!firstEl || yPos > 0) pdf.addPage();
+      firstEl = false;
+
+      pdf.addImage(
+        slice.toDataURL('image/png'),
+        'PNG',
+        margin, margin,
+        usableW, sliceH / ratio
+      );
+
+      yPos += sliceH;
+    }
   }
 
   return pdf;
 }
 
 async function handleDownload() {
-  const pdf = await capturePageAsPDF();
+  const pdf = await buildPDF();
   if (!pdf) return;
-  pdf.save(`LeaveCard_${new Date().toISOString().slice(0, 10)}.pdf`);
+  pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 async function handlePrint() {
-  const pdf = await capturePageAsPDF();
+  const pdf = await buildPDF();
   if (!pdf) return;
   const blob = pdf.output('blob');
   const url  = URL.createObjectURL(blob);
   const win  = window.open(url, '_blank');
   if (win) {
-    win.onload = () => { win.focus(); win.print(); };
+    win.addEventListener('load', () => {
+      win.focus();
+      win.print();
+    });
   }
 }
 
-function handleLogout(onLogout: () => void) {
-  if (!confirm('Are you sure you want to log out?')) return;
-  onLogout();
-}
-
-export default function UserPage({ onLogout }: Props) {
+export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editIdx, setEditIdx]       = useState<number>(-1);
+  const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
+  const formRef = useRef<HTMLDivElement>(null);
+  const curId   = state.curId;
+
+  const refresh = useCallback(async () => {
+    if (!curId) return;
+    const empStatus = (state.db.find(e => e.id === curId)?.status || 'Non-Teaching') as 'Teaching' | 'Non-Teaching';
+    const res = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (!res.ok || !res.records) return;
+    const sorted = [...res.records];
+    sortRecordsByDate(sorted);
+    const updates = computeRowBalanceUpdates(sorted, curId, empStatus);
+    if (updates.length > 0) {
+      await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
+    }
+    const res2 = await apiCall('get_records', { employee_id: curId }, 'GET');
+    if (!res2.ok || !res2.records) return;
+    const sorted2 = [...res2.records];
+    sortRecordsByDate(sorted2);
+    dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: curId, records: sorted2 } });
+    setRefreshKey(k => k + 1);
+  }, [curId, dispatch, state.db]);
 
   useEffect(() => {
-    if (!emp || (emp.records && emp.records.length > 0)) return;
-    apiCall('get_records', { employee_id: emp.id }, 'GET').then(res => {
-      if (res.ok) dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: emp.id, records: res.records || [] } });
-    });
-  }, [emp?.id]);
+    if (curId) refresh();
+  }, [curId]);
 
-  if (!emp) return null;
+  function handleEditRow(idx: number, record: LeaveRecord) {
+    setEditIdx(idx);
+    setEditRecord(record);
+    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  }
 
-  const isTeaching = emp.status === 'Teaching';
+  function handleCancelEdit() {
+    setEditIdx(-1);
+    setEditRecord(undefined);
+  }
+
+  function handleSaved() {
+    setEditIdx(-1);
+    setEditRecord(undefined);
+    setTimeout(() => refresh(), 500);
+  }
+
+  if (!emp) return (
+    <div className="card">
+      <div className="cb" style={{ color: 'var(--mu)', fontStyle: 'italic' }}>No employee selected.</div>
+    </div>
+  );
+
+  const isReadOnly = emp.archived;
 
   return (
     <div>
-      <div className="user-action-bar no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
-        <button className="nb out" onClick={() => handleLogout(onLogout)} style={{ height: 40, padding: '0 18px', fontSize: 12, fontWeight: 600 }}>🔒 Logout</button>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
           <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
         </div>
       </div>
 
-      {/* Profile header card */}
-      <div className="card" id="userProfileCard">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px 10px', borderBottom: '2px solid var(--g2)', background: 'linear-gradient(90deg,var(--g0),var(--g1))' }}>
-          <img src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg" alt="SDO"
-            style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,.3)', flexShrink: 0 }}
-            onError={e => { e.currentTarget.src = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'; }} />
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.7)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Republic of the Philippines · Department of Education</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '.3px', marginTop: 2 }}>SDO City of Koronadal — Region XII</div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,.55)', marginTop: 1, letterSpacing: '.5px' }}>Employee Leave Record</div>
-          </div>
-        </div>
-        <div className="ch grn center">
-          {isTeaching ? '📋 Teaching Personnel Leave Record (Service Credits)' : '📋 Non-Teaching Personnel Leave Record'}
-        </div>
+      <div className="card" id="ntCard">
+        <div className="ch grn center">📋 Non-Teaching Personnel Leave Record</div>
         <div className="cb"><ProfileBlock e={emp as never} /></div>
       </div>
 
-      {/* Leave card table */}
-      <div className="card" style={{ padding: 0 }} id="userTableCard">
-        <div className="tw">
-          <table>
-            <LeaveTableHeader showAction={false} />
-            <tbody>
-              {isTeaching
-                ? <TeachingRows records={emp.records || []} />
-                : <NTRows       records={emp.records || []} />}
-            </tbody>
-          </table>
+      {!isReadOnly && (state.isAdmin || state.isEncoder) && (
+        <div className="card no-print" id="ntFrm" ref={formRef}>
+          <div className="ch amber">
+            {editIdx >= 0 ? `✏ Editing Row #${editIdx + 1}` : '✏ Leave Entry Form'}
+          </div>
+          <div className="cb">
+            <LeaveEntryForm
+              empId={emp.id}
+              empStatus="Non-Teaching"
+              empRecords={emp.records || []}
+              editIdx={editIdx}
+              editRecord={editRecord}
+              onSaved={handleSaved}
+              onCancelEdit={handleCancelEdit}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      <NTCardTable
+        key={refreshKey}
+        emp={emp}
+        isAdmin={!!(state.isAdmin || state.isEncoder)}
+        onRefresh={refresh}
+        onEdit={handleEditRow}
+      />
     </div>
   );
 }
 
-function NTRows({ records }: { records: LeaveRecord[] }) {
-  let bV = 0, bS = 0;
+function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
+  emp: Personnel; isAdmin: boolean; onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+}) {
+  const records = emp.records || [];
+  const convIdxs: number[] = [];
+  records.forEach((r, i) => { if (r._conversion) convIdxs.push(i); });
+
+  if (convIdxs.length === 0) {
+    return (
+      <div className="card" style={{ padding: 0 }} id="ntTblCard">
+        <div className="tw">
+          <table>
+            <LeaveTableHeader showAction={isAdmin} />
+            <tbody>
+              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0}
+                onRefresh={onRefresh} onEdit={onEdit} />
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  const segments: { status: string; recs: LeaveRecord[]; startIdx: number; convIdx: number; conv: LeaveRecord | null }[] = [];
+  let segStart  = 0;
+  let curStatus = records[convIdxs[0]].fromStatus || emp.status;
+  for (const cIdx of convIdxs) {
+    segments.push({ status: curStatus, recs: records.slice(segStart, cIdx), startIdx: segStart, convIdx: cIdx, conv: records[cIdx] });
+    curStatus = records[cIdx].toStatus || emp.status;
+    segStart  = cIdx + 1;
+  }
+  segments.push({ status: curStatus, recs: records.slice(segStart), startIdx: segStart, convIdx: -1, conv: null });
+
+  return (
+    <>
+      {segments.slice(0, -1).map((seg, si) => (
+        <EraSection key={si} seg={seg} si={si} emp={emp} isAdmin={isAdmin} onRefresh={onRefresh} cardType="nt" />
+      ))}
+      <div className="card era-new-section" style={{ padding: 0 }} id="ntTblCard">
+        <div className="tw">
+          <table>
+            <LeaveTableHeader showAction={isAdmin} />
+            <tbody>
+              {segments.length > 1 && segments[segments.length - 2].conv && (() => {
+                const prevSeg = segments[segments.length - 2];
+                const lastRec = [...prevSeg.recs].reverse().find(r => !r._conversion);
+                const bV = lastRec?.setA_balance ?? 0;
+                const bS = lastRec?.setB_balance ?? 0;
+                return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
+              })()}
+              <SingleNTEra
+                records={segments[segments.length - 1].recs}
+                isAdmin={isAdmin} emp={emp}
+                startIdx={segments[segments.length - 1].startIdx}
+                onRefresh={onRefresh} onEdit={onEdit}
+              />
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: {
+  records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
+  onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+}) {
   return (
     <>
       {records.map((r, ri) => {
         if (r._conversion) return null;
-        const res = computeNTRow(r, bV, bS);
-        bV = res.bV; bS = res.bS;
-        const { eV, eS, aV, aS, wV, wS } = res;
         const { classifyLeave } = require('@/lib/api');
-        const C = classifyLeave(r.action || '');
-        const ac = C.isDis ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
-        const dd = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
+        const C       = classifyLeave(r.action || '');
+        const ac      = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
+        const dd      = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
+        const prd     = r.prd + (dd ? `<br/><span class="prd-date">${dd}</span>` : '');
         const isEmpty = isEmptyRecord(r);
+        const idx     = startIdx + ri;
+        const eV = r.setA_earned  ?? 0;
+        const aV = r.setA_abs_wp  ?? 0;
+        const bV = r.setA_balance ?? 0;
+        const wV = r.setA_wop     ?? 0;
+        const eS = r.setB_earned  ?? 0;
+        const aS = r.setB_abs_wp  ?? 0;
+        const bS = r.setB_balance ?? 0;
+        const wS = r.setB_wop     ?? 0;
         return (
           <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
             <td>{r.so}</td>
-            <td className="period-cell">{r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}</td>
+            <td className="period-cell" dangerouslySetInnerHTML={{ __html: prd }} />
             <td className="nc">{hz(eV)}</td><td className="nc">{hz(aV)}</td>
             <td className="bc">{fmtNum(bV)}</td><td className="nc">{hz(wV)}</td>
             <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
             <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`}>{r.action}</td>
+            {isAdmin && (
+              <RowMenu record={r} idx={idx} type="nt" emp={emp}
+                onRefresh={onRefresh} onEdit={onEdit} />
+            )}
           </tr>
         );
       })}
@@ -167,37 +324,34 @@ function NTRows({ records }: { records: LeaveRecord[] }) {
   );
 }
 
-function TeachingRows({ records }: { records: LeaveRecord[] }) {
-  let bal = 0;
+function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: {
+  record: LeaveRecord; idx: number; type: string; emp: Personnel;
+  onRefresh: () => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  async function handleDelete() {
+    setOpen(false);
+    if (!record._record_id) return;
+    if (!confirm('Delete this row? This cannot be undone.')) return;
+    const res = await apiCall('delete_record', { employee_id: emp.id, record_id: record._record_id });
+    if (!res.ok) { alert('Delete failed: ' + (res.error || 'Unknown error')); return; }
+    onRefresh();
+  }
+
   return (
-    <>
-      {records.map((r, ri) => {
-        if (r._conversion) return null;
-        const res = computeTRow(r, bal);
-        bal = res.bal;
-        const { aV, aS, wV, wS, isSetBLeave } = res;
-        const { classifyLeave } = require('@/lib/api');
-        const C = classifyLeave(r.action || '');
-        const isE = r.earned > 0;
-        const ac = C.isDis ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
-        const dd = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
-        const isEmpty = isEmptyRecord(r);
-        return (
-          <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
-            <td>{r.so}</td>
-            <td className="period-cell">{r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}</td>
-            <td className="nc">{C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(r.earned) : ''}</td>
-            <td className="nc">{hz(aV)}</td>
-            <td className="bc">{isSetBLeave ? '' : fmtNum(bal)}</td>
-            <td className="nc">{hz(wV)}</td>
-            <td className="nc">{''}</td>
-            <td className="nc">{hz(aS)}</td>
-            <td className="bc">{isSetBLeave ? fmtNum(bal) : ''}</td>
-            <td className="nc">{hz(wS)}</td>
-            <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
-          </tr>
-        );
-      })}
-    </>
+    <td className="no-print" style={{ textAlign: 'center', padding: '0 4px' }}>
+      <div className="row-menu-wrap" style={{ position: 'relative', display: 'inline-block' }}>
+        <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
+        {open && (
+          <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
+            <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
+            <div className="menu-div" />
+            <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
+          </div>
+        )}
+      </div>
+    </td>
   );
 }
