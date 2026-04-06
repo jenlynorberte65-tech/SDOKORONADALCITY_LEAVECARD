@@ -66,12 +66,6 @@ async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
   return pdf;
 }
 
-async function handleDownload() {
-  const pdf = await buildPDF();
-  if (!pdf) return;
-  pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
-
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
