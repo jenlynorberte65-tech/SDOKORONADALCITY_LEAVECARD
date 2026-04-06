@@ -9,59 +9,57 @@ import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onBack: () => void; }
 
-async function capturePageAsPDF(filename: string) {
-  const pageEl = document.querySelector('.page.on') as HTMLElement;
-  if (!pageEl) return;
-
+async function buildPDF(): Promise<import('jspdf').jsPDF | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
 
-  // Legal paper at 96dpi: 8.5in x 13in = 816 x 1248px
-  const LEGAL_W_PX = 816;
+  const pageEl = document.querySelector<HTMLElement>('.page.on');
+  if (!pageEl) return null;
 
-  const noPrintEls = pageEl.querySelectorAll('.no-print');
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none');
-
-  // Save original width and force legal paper width for capture
-  const origWidth = pageEl.style.width;
-  const origMaxWidth = pageEl.style.maxWidth;
-  pageEl.style.width = `${LEGAL_W_PX}px`;
-  pageEl.style.maxWidth = `${LEGAL_W_PX}px`;
-
-  const canvas = await html2canvas(pageEl, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    width: LEGAL_W_PX,
-    windowWidth: LEGAL_W_PX,
-  });
-
-  // Restore original styles
-  pageEl.style.width = origWidth;
-  pageEl.style.maxWidth = origMaxWidth;
-  noPrintEls.forEach(el => (el as HTMLElement).style.display = '');
-
-  // Legal paper: 215.9mm x 330.2mm
   const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215.9, 330.2] });
   const pdfW    = pdf.internal.pageSize.getWidth();
   const pdfH    = pdf.internal.pageSize.getHeight();
   const margin  = 6;
   const usableW = pdfW - margin * 2;
-  const ratio   = canvas.width / usableW;
-  let yPos      = 0;
+
+  const savedStyle = pageEl.getAttribute('style') || '';
+  pageEl.style.overflow  = 'visible';
+  pageEl.style.maxHeight = 'none';
+  pageEl.style.height    = 'auto';
+
+  const canvas = await html2canvas(pageEl, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    scrollX: 0,
+    scrollY: -window.scrollY,
+    width:        pageEl.scrollWidth,
+    height:       pageEl.scrollHeight,
+    windowWidth:  pageEl.scrollWidth,
+    windowHeight: pageEl.scrollHeight,
+    ignoreElements: (node) => {
+      const n = node as HTMLElement;
+      return n.classList?.contains('no-print') || n.tagName === 'BUTTON';
+    },
+  });
+
+  pageEl.setAttribute('style', savedStyle);
+
+  const ratio = canvas.width / usableW;
+  let yPos = 0;
+  let first = true;
 
   while (yPos < canvas.height) {
     const sliceH = Math.min((pdfH - margin * 2) * ratio, canvas.height - yPos);
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width  = canvas.width;
-    sliceCanvas.height = sliceH;
-    sliceCanvas.getContext('2d')!.drawImage(
-      canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH
-    );
-    if (yPos > 0) pdf.addPage();
-    pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
+    const slice  = document.createElement('canvas');
+    slice.width  = canvas.width;
+    slice.height = Math.ceil(sliceH);
+    slice.getContext('2d')!.drawImage(canvas, 0, yPos, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+    if (!first) pdf.addPage();
+    first = false;
+    pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceH / ratio);
     yPos += sliceH;
   }
 
@@ -69,7 +67,7 @@ async function capturePageAsPDF(filename: string) {
 }
 
 async function handleDownload() {
-  const pdf = await capturePageAsPDF('NT');
+  const pdf = await buildPDF();
   if (!pdf) return;
   pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
@@ -143,7 +141,7 @@ async function handlePrint() {
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>T Leave Card</title>
+  <title>NT Leave Card</title>
   <style>${PRINT_STYLES}</style>
 </head>
 <body>
@@ -164,14 +162,14 @@ async function handlePrint() {
   win.addEventListener('load', () => { win.focus(); win.print(); });
 }
 
-export default function TCardPage({ onBack }: Props) {
+export default function NTCardPage({ onBack }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [refreshKey, setRefreshKey] = useState(0);
   const [editIdx, setEditIdx]       = useState<number>(-1);
   const [editRecord, setEditRecord] = useState<LeaveRecord | undefined>(undefined);
-  const curId   = state.curId;
   const formRef = useRef<HTMLDivElement>(null);
+  const curId   = state.curId;
 
   const refresh = useCallback(async () => {
     if (!curId) return;
@@ -214,6 +212,8 @@ export default function TCardPage({ onBack }: Props) {
     </div>
   );
 
+  const isReadOnly = emp.archived;
+
   return (
     <div>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
@@ -224,20 +224,20 @@ export default function TCardPage({ onBack }: Props) {
         </div>
       </div>
 
-      <div className="card" id="tCard">
-        <div className="ch grn center">📋 Teaching Personnel Leave Record (Service Credits)</div>
+      <div className="card" id="ntCard">
+        <div className="ch grn center">📋 Non-Teaching Personnel Leave Record</div>
         <div className="cb"><ProfileBlock e={emp as never} /></div>
       </div>
 
-      {!emp.archived && (state.isAdmin || state.isEncoder) && (
-        <div className="card no-print" id="tFrm" ref={formRef}>
+      {!isReadOnly && (state.isAdmin || state.isEncoder) && (
+        <div className="card no-print" id="ntFrm" ref={formRef}>
           <div className="ch amber">
             {editIdx >= 0 ? `✏ Editing Row #${editIdx + 1}` : '✏ Leave Entry Form'}
           </div>
           <div className="cb">
             <LeaveEntryForm
               empId={emp.id}
-              empStatus="Teaching"
+              empStatus="Non-Teaching"
               empRecords={emp.records || []}
               editIdx={editIdx}
               editRecord={editRecord}
@@ -248,20 +248,20 @@ export default function TCardPage({ onBack }: Props) {
         </div>
       )}
 
-      <TCardTable
+      <NTCardTable
         key={refreshKey}
         emp={emp}
         isAdmin={!!(state.isAdmin || state.isEncoder)}
         onRefresh={refresh}
-        onEditRow={handleEditRow}
+        onEdit={handleEditRow}
       />
     </div>
   );
 }
 
-function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
+function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
   emp: Personnel; isAdmin: boolean; onRefresh: () => void;
-  onEditRow: (idx: number, record: LeaveRecord) => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
 }) {
   const records = emp.records || [];
   const convIdxs: number[] = [];
@@ -269,13 +269,13 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
 
   if (convIdxs.length === 0) {
     return (
-      <div className="card" style={{ padding: 0 }} id="tTblCard">
+      <div className="card" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
           <table>
             <LeaveTableHeader showAction={isAdmin} />
             <tbody>
-              <SingleTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0}
-                onRefresh={onRefresh} onEditRow={onEditRow} />
+              <SingleNTEra records={records} isAdmin={isAdmin} emp={emp} startIdx={0}
+                onRefresh={onRefresh} onEdit={onEdit} />
             </tbody>
           </table>
         </div>
@@ -296,9 +296,9 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
   return (
     <>
       {segments.slice(0, -1).map((seg, si) => (
-        <EraSection key={si} seg={seg} si={si} emp={emp} isAdmin={isAdmin} onRefresh={onRefresh} cardType="t" />
+        <EraSection key={si} seg={seg} si={si} emp={emp} isAdmin={isAdmin} onRefresh={onRefresh} cardType="nt" />
       ))}
-      <div className="card era-new-section" style={{ padding: 0 }} id="tTblCard">
+      <div className="card era-new-section" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
           <table>
             <LeaveTableHeader showAction={isAdmin} />
@@ -310,11 +310,11 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
                 const bS = lastRec?.setB_balance ?? 0;
                 return <FwdRow conv={prevSeg.conv!} bV={bV} bS={bS} status={segments[segments.length - 1].status} />;
               })()}
-              <SingleTEra
+              <SingleNTEra
                 records={segments[segments.length - 1].recs}
                 isAdmin={isAdmin} emp={emp}
                 startIdx={segments[segments.length - 1].startIdx}
-                onRefresh={onRefresh} onEditRow={onEditRow}
+                onRefresh={onRefresh} onEdit={onEdit}
               />
             </tbody>
           </table>
@@ -324,46 +324,42 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
   );
 }
 
-function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
+function SingleNTEra({ records, isAdmin, emp, startIdx, onRefresh, onEdit }: {
   records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
   onRefresh: () => void;
-  onEditRow: (idx: number, record: LeaveRecord) => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
 }) {
   return (
     <>
       {records.map((r, ri) => {
         if (r._conversion) return null;
         const { classifyLeave } = require('@/lib/api');
-        const C           = classifyLeave(r.action || '');
-        const isE         = r.earned > 0;
-        const ac          = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
-        const dd          = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
-        const isEmpty     = isEmptyRecord(r);
-        const idx         = startIdx + ri;
-        const earned      = r.setA_earned  ?? 0;
-        const aV          = r.setA_abs_wp  ?? 0;
-        const balA        = r.setA_balance ?? 0;
-        const wV          = r.setA_wop     ?? 0;
-        const aS          = r.setB_abs_wp  ?? 0;
-        const balB        = r.setB_balance ?? 0;
-        const wS          = r.setB_wop     ?? 0;
-        const isSetBLeave = balA === 0 && balB > 0;
+        const C       = classifyLeave(r.action || '');
+        const ac      = (C.isDis || C.isForceDis) ? 'rdc' : (C.isMon || C.isMD ? 'puc' : '');
+        const dd      = r.spec || (r.from ? `${fmtD(r.from)} – ${fmtD(r.to)}` : '');
+        const prd     = r.prd + (dd ? `<br/><span class="prd-date">${dd}</span>` : '');
+        const isEmpty = isEmptyRecord(r);
+        const idx     = startIdx + ri;
+        const eV = r.setA_earned  ?? 0;
+        const aV = r.setA_abs_wp  ?? 0;
+        const bV = r.setA_balance ?? 0;
+        const wV = r.setA_wop     ?? 0;
+        const eS = r.setB_earned  ?? 0;
+        const aS = r.setB_abs_wp  ?? 0;
+        const bS = r.setB_balance ?? 0;
+        const wS = r.setB_wop     ?? 0;
         return (
           <tr key={r._record_id || ri} style={isEmpty ? { background: '#fff5f5' } : {}}>
             <td>{r.so}</td>
-            <td className="period-cell">{r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}</td>
-            <td className="nc">{C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(earned) : ''}</td>
-            <td className="nc">{hz(aV)}</td>
-            <td className="bc">{isSetBLeave ? '' : fmtNum(balA)}</td>
-            <td className="nc">{hz(wV)}</td>
-            <td className="nc">{''}</td>
-            <td className="nc">{hz(aS)}</td>
-            <td className="bc">{isSetBLeave ? fmtNum(balB) : ''}</td>
-            <td className="nc">{hz(wS)}</td>
-            <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>{r.action}</td>
+            <td className="period-cell" dangerouslySetInnerHTML={{ __html: prd }} />
+            <td className="nc">{hz(eV)}</td><td className="nc">{hz(aV)}</td>
+            <td className="bc">{fmtNum(bV)}</td><td className="nc">{hz(wV)}</td>
+            <td className="nc">{hz(eS)}</td><td className="nc">{hz(aS)}</td>
+            <td className="bc">{fmtNum(bS)}</td><td className="nc">{hz(wS)}</td>
+            <td className={`${ac} remarks-cell`}>{r.action}</td>
             {isAdmin && (
-              <TRowMenu record={r} idx={idx} emp={emp}
-                onRefresh={onRefresh} onEditRow={onEditRow} />
+              <RowMenu record={r} idx={idx} type="nt" emp={emp}
+                onRefresh={onRefresh} onEdit={onEdit} />
             )}
           </tr>
         );
@@ -372,10 +368,10 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
   );
 }
 
-function TRowMenu({ record, idx, emp, onRefresh, onEditRow }: {
-  record: LeaveRecord; idx: number; emp: Personnel;
+function RowMenu({ record, idx, type, emp, onRefresh, onEdit }: {
+  record: LeaveRecord; idx: number; type: string; emp: Personnel;
   onRefresh: () => void;
-  onEditRow: (idx: number, record: LeaveRecord) => void;
+  onEdit: (idx: number, record: LeaveRecord) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -394,7 +390,7 @@ function TRowMenu({ record, idx, emp, onRefresh, onEditRow }: {
         <button className="row-menu-btn" onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>⋮</button>
         {open && (
           <div className="row-menu-dd open" style={{ position: 'absolute', right: 0, zIndex: 9999 }}>
-            <button onClick={() => { setOpen(false); onEditRow(idx, record); }}>✏️ Edit Row</button>
+            <button onClick={() => { setOpen(false); onEdit(idx, record); }}>✏️ Edit Row</button>
             <div className="menu-div" />
             <button className="danger" onClick={handleDelete}>🗑️ Delete Row</button>
           </div>
