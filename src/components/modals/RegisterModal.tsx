@@ -163,13 +163,36 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       // This creates a new era in the leave card with a "Balance Forwarded" row.
       // The last balance of the old era carries forward to the new era.
       if (statusChanged && employee) {
-        // Find the last non-conversion record to get the final balance
-        const lastRec = [...(employee.records ?? [])]
-          .reverse()
-          .find(r => !r._conversion);
-
-        const fwdBV = lastRec?.setA_balance ?? 0;
-        const fwdBS = lastRec?.setB_balance ?? 0;
+        // Fetch FRESH records from DB — local state balances may be stale
+        // because save_row_balance hasn't run yet on the current session.
+        let fwdBV = 0;
+        let fwdBS = 0;
+        try {
+          const recRes = await fetch(
+            `/api/get_records?employee_id=${encodeURIComponent(originalId)}`
+          );
+          const recData = await recRes.json();
+          if (recData.ok && Array.isArray(recData.records)) {
+            // Find the very last non-conversion record
+            const freshRecs: Array<{
+              _conversion?: boolean;
+              setA_balance?: number;
+              setB_balance?: number;
+            }> = recData.records;
+            const lastFresh = [...freshRecs].reverse().find(r => !r._conversion);
+            if (lastFresh) {
+              fwdBV = lastFresh.setA_balance ?? 0;
+              fwdBS = lastFresh.setB_balance ?? 0;
+            }
+          }
+        } catch {
+          // fallback to local state if fetch fails
+          const lastRec = [...(employee.records ?? [])]
+            .reverse()
+            .find(r => !r._conversion);
+          fwdBV = lastRec?.setA_balance ?? 0;
+          fwdBS = lastRec?.setB_balance ?? 0;
+        }
 
         const conversionRecord = {
           so:          '',
