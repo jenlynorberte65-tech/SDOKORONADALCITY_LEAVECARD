@@ -15,8 +15,6 @@ const PDF_W_MM   = 215.9;
 const PDF_H_MM   = 330.2;
 const MARGIN_MM  = 6;
 
-const LOGO_URL = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg';
-
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
