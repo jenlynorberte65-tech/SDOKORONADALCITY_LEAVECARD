@@ -186,12 +186,18 @@ export function computeRowBalanceUpdates(
 
   for (const r of records) {
     if (!r) continue;
-    if (r._conversion) {
-      if (curEra === 'Teaching'     && r.toStatus === 'Non-Teaching') { bV = bal; bS = bal; }
-      if (curEra === 'Non-Teaching' && r.toStatus === 'Teaching')     { bal = bV; }
-      curEra = r.toStatus!;
-      continue;
-    }
+   // REPLACE:
+if (r._conversion) {
+  // ✅ Reset balances to zero when era changes — Era 2 starts fresh
+  // The FwdRow display handles showing the old balance visually
+  if (curEra === 'Teaching' && r.toStatus === 'Non-Teaching') {
+    bV = 0; bS = 0;
+  } else if (curEra === 'Non-Teaching' && r.toStatus === 'Teaching') {
+    bal = 0;
+  }
+  curEra = r.toStatus!;
+  continue;
+}
 
     const C = classifyLeave(r.action || '');
     // isForceDis and isMD/isMon/isAcc/isTransfer handle their own days, exclude from calcDays
