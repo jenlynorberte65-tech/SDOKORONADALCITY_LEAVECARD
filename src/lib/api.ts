@@ -252,7 +252,8 @@ export function computeRowBalanceUpdates(
       // Seed from the conversion record's stored forwarded balance.
       // conv.fwdBV holds the balance forwarded into this Teaching era.
       // For Era 1 (no conv): start from 0.
-      let bal = seg.conv ? (seg.conv.fwdBV ?? 0) : 0;
+      // Calculation starts from ZERO — Balance Forwarded is display only.
+        let bal = 0;
 
       // Also update the conversion record row itself in the DB
       // to reflect the correct forwarded balance snapshot.
@@ -310,18 +311,9 @@ export function computeRowBalanceUpdates(
       //   Use it for BOTH bV and bS (Teaching → NT: single balance seeds both accumulators).
       // If converting FROM Non-Teaching (or Era 1): use fwdBV and fwdBS directly.
       // Era 1 (no conv): start both from 0.
-      let bV = 0;
-      let bS = 0;
-      if (seg.conv) {
-        const fromTeaching = seg.conv.fromStatus === 'Teaching';
-        if (fromTeaching) {
-          bV = seg.conv.fwdBV ?? 0;
-          bS = seg.conv.fwdBV ?? 0;   // intentionally fwdBV for both
-        } else {
-          bV = seg.conv.fwdBV ?? 0;
-          bS = seg.conv.fwdBS ?? 0;
-        }
-      }
+     // Calculation starts from ZERO — Balance Forwarded is display only.
+        let bV = 0;
+        let bS = 0;
 
       for (const r of seg.recs) {
         if (!r._record_id) continue;
