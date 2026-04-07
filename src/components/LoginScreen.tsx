@@ -22,18 +22,17 @@ export default function LoginScreen() {
 
     if (res.role === 'admin' || res.role === 'encoder') {
       dispatch({ type: 'LOGIN_ADMIN', payload: { name: res.name!, loginId: res.login_id!, isEncoder: res.role === 'encoder' } });
-      // Load DB
       const dbRes = await apiCall('get_personnel', {}, 'GET');
       if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
-      dispatch({ type: 'SET_PAGE', payload: 'list' });
-      saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'list' });
+      dispatch({ type: 'SET_PAGE', payload: 'home' }); // ← was 'list'
+      saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'home' });
 
     } else if (res.role === 'school_admin') {
       dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: res.name!, loginId: res.login_id!, dbId: res.db_id! } });
       const dbRes = await apiCall('get_personnel', {}, 'GET');
       if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
-      dispatch({ type: 'SET_PAGE', payload: 'sa' });
-      saveSession({ isAdmin: false, isEncoder: false, isSchoolAdmin: true, curId: null, page: 'sa', schoolAdminCfg: { id: res.login_id, dbId: res.db_id, name: res.name } });
+      dispatch({ type: 'SET_PAGE', payload: 'home' }); // ← was 'sa'
+      saveSession({ isAdmin: false, isEncoder: false, isSchoolAdmin: true, curId: null, page: 'home', schoolAdminCfg: { id: res.login_id, dbId: res.db_id, name: res.name } });
 
     } else if (res.role === 'employee') {
       if (res.account_status === 'inactive') { setError('Your account is inactive. Please contact the administrator.'); return; }
@@ -43,7 +42,6 @@ export default function LoginScreen() {
         dispatch({ type: 'SET_DB', payload: dbRes.data });
         const emp = (dbRes.data as Personnel[]).find(e => e.id === res.employee_id);
         if (!emp || emp.account_status === 'inactive') { setError('Account not found or inactive.'); return; }
-        // Load records
         const recRes = await apiCall('get_records', { employee_id: res.employee_id! }, 'GET');
         if (recRes.ok) dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: res.employee_id!, records: recRes.records || [] } });
       }
