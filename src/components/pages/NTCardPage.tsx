@@ -314,7 +314,6 @@ export default function NTCardPage({ onBack }: Props) {
       <div className="card" id="ntCard">
         <div className="ch grn center" style={{ gap: 12 }}>
           <img
-            src={LOGO_URL}
             alt="Koronadal City Division"
             style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
             crossOrigin="anonymous"
