@@ -311,7 +311,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           {/* Account Credentials */}
           <div className="sdiv">Account Credentials</div>
           <div className="ig" style={{ marginBottom: 18 }}>
-            {fi('Employee id (7 digits)', 'id', 'text', undefined, isNew ? '*' : undefined)}
+            {fi('Employee NO (7 digits)', 'id', 'text', undefined, isNew ? '*' : undefined)}
             {fi('Email Address (@deped.gov.ph)', 'email', 'email', undefined, '*')}
             <div className="f">
               <label>
