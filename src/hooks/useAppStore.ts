@@ -31,7 +31,10 @@ export type AppAction =
   | { type: 'LOGOUT' }
   | { type: 'SET_PAGE'; payload: Page }
   | { type: 'SET_CUR_ID'; payload: string | null }
-  | { type: 'UPDATE_EMPLOYEE'; payload: { employee: Personnel; originalId: string } }  // FIX: added originalId
+  // Supports both:
+  //   { type: 'UPDATE_EMPLOYEE', payload: Personnel }                         (legacy)
+  //   { type: 'UPDATE_EMPLOYEE', payload: { employee: Personnel; originalId: string } } (new)
+  | { type: 'UPDATE_EMPLOYEE'; payload: Personnel | { employee: Personnel; originalId: string } }
   | { type: 'ADD_EMPLOYEE'; payload: Personnel }
   | { type: 'SET_EMPLOYEE_RECORDS'; payload: { id: string; records: Personnel['records'] } }
   | { type: 'SET_ADMIN_CFG'; payload: { admin?: Partial<AdminConfig>; encoder?: Partial<AdminConfig> } }
@@ -67,8 +70,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         isEncoder: action.payload.isEncoder,
         isSchoolAdmin: false,
         role: action.payload.isEncoder ? 'encoder' : 'admin',
-        adminCfg: action.payload.isEncoder ? state.adminCfg : { ...state.adminCfg, id: action.payload.loginId, name: action.payload.name },
-        encoderCfg: action.payload.isEncoder ? { ...state.encoderCfg, id: action.payload.loginId, name: action.payload.name } : state.encoderCfg,
+        adminCfg: action.payload.isEncoder
+          ? state.adminCfg
+          : { ...state.adminCfg, id: action.payload.loginId, name: action.payload.name },
+        encoderCfg: action.payload.isEncoder
+          ? { ...state.encoderCfg, id: action.payload.loginId, name: action.payload.name }
+          : state.encoderCfg,
       };
 
     case 'LOGIN_SCHOOL_ADMIN':
@@ -83,7 +90,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'LOGIN_EMPLOYEE':
-      return { ...state, isAdmin: false, isEncoder: false, isSchoolAdmin: false, role: 'employee', curId: action.payload.curId, page: 'user' };
+      return {
+        ...state,
+        isAdmin: false,
+        isEncoder: false,
+        isSchoolAdmin: false,
+        role: 'employee',
+        curId: action.payload.curId,
+        page: 'user',
+      };
 
     case 'LOGOUT':
       return { ...initialState };
@@ -95,9 +110,22 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, curId: action.payload };
 
     case 'UPDATE_EMPLOYEE': {
-      // FIX: find by originalId (the old ID in state.db), not the new id.
-      // This ensures the correct record is replaced even when the ID itself changed.
-      const { employee, originalId } = action.payload;
+      // Support both payload shapes:
+      // - Legacy:  payload is a Personnel object directly
+      // - New:     payload is { employee: Personnel; originalId: string }
+      let employee: Personnel;
+      let originalId: string;
+
+      if ('employee' in action.payload && 'originalId' in action.payload) {
+        // New shape — ID may have changed, use originalId to find the record
+        employee   = action.payload.employee;
+        originalId = action.payload.originalId;
+      } else {
+        // Legacy shape — ID has not changed, use payload.id as usual
+        employee   = action.payload as Personnel;
+        originalId = (action.payload as Personnel).id;
+      }
+
       const idx = state.db.findIndex(e => e.id === originalId);
       if (idx === -1) return state;
       const db = [...state.db];
