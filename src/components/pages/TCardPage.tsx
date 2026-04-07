@@ -93,10 +93,11 @@ function buildPrintHTML(contentHTML: string, title: string, logoDataUrl?: string
 </html>`;
 }
 
-/** Fetch the logo and convert to a base64 data URL so it embeds in the PDF canvas */
+/** Fetch the logo as base64 data URL — use no-referrer to bypass WordPress hotlink protection */
 async function fetchLogoDataUrl(): Promise<string> {
   try {
-    const res = await fetch(LOGO_URL, { mode: 'cors' });
+    const res = await fetch(LOGO_URL, { referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error('fetch failed');
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -105,7 +106,7 @@ async function fetchLogoDataUrl(): Promise<string> {
       reader.readAsDataURL(blob);
     });
   } catch {
-    return LOGO_URL; // fallback to URL if fetch fails
+    return LOGO_URL; // fallback: let html2canvas try directly
   }
 }
 
@@ -177,8 +178,9 @@ async function buildPDF(contentHTML: string): Promise<import('jspdf').jsPDF | nu
 }
 
 /** Print directly in the current window — inject a style tag, print, then remove it */
-function triggerPrint(contentHTML: string): void {
-  const logoDataUrl = LOGO_URL; // use URL for print (browser handles CORS for printing)
+async function triggerPrint(contentHTML: string): Promise<void> {
+  // Fetch logo as base64 so it renders in the injected container without CORS/referrer issues
+  const logoDataUrl = await fetchLogoDataUrl();
 
   // Build the full printable HTML string
   const printHTML = buildPrintHTML(contentHTML, 'Leave Card', logoDataUrl);
@@ -275,13 +277,15 @@ export default function TCardPage({ onBack }: Props) {
   }
 
   /** Print directly — no new tab */
-  function handlePrint() {
+  async function handlePrint() {
     if (printing) return;
     setPrinting(true);
     try {
       const content = getPageContent();
       if (!content) { alert('No content found.'); return; }
-      triggerPrint(content);
+      await triggerPrint(content);
+    } catch (err) {
+      console.error('Print error:', err);
     } finally {
       setPrinting(false);
     }
@@ -326,11 +330,12 @@ export default function TCardPage({ onBack }: Props) {
       <div className="card" id="tCard">
         <div className="ch grn center" style={{ gap: 12 }}>
           {/* Logo visible in the UI header */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={LOGO_URL}
             alt="Koronadal City Division"
-            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid rgba(255,255,255,0.3)' }}
           />
           <span>📋 Teaching Personnel Leave Record (Service Credits)</span>
         </div>
