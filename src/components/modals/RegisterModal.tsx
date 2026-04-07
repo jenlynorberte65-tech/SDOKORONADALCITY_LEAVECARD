@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { validateEmployeeId, validateDepedEmail } from '@/lib/api';
+import { validateDepedEmail, fmtDateInput } from '@/lib/api';
 import { useAppStore } from '@/hooks/useAppStore';
 import type { Personnel } from '@/types';
 
@@ -17,6 +17,30 @@ const EMPTY: F = {
   dob:'',pob:'',addr:'',spouse:'',edu:'',elig:'',rating:'',tin:'',pexam:'',dexam:'',
   appt:'',status:'Teaching',account_status:'active',pos:'',school:'',
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ✏️  SCHOOL / OFFICE LIST — Edit this array to add, remove, or rename entries.
+//     Each string becomes one option in the dropdown.
+// ─────────────────────────────────────────────────────────────────────────────
+const SCHOOL_OPTIONS: string[] = [
+  'SDO Koronadal City – Main Office',
+  'Koronadal National Comprehensive High School',
+  'Marbel 1 Central Elementary School',
+  'Marbel 2 Elementary School',
+  'Marbel 3 Elementary School',
+  'Marbel 4 Elementary School',
+  'Marbel 5 Elementary School',
+  'Cacub Elementary School',
+  'Carpenter Hill Elementary School',
+  'City Central Elementary School',
+  'Esperanza Elementary School',
+  'General Paulino Santos Elementary School',
+  'Namnama Elementary School',
+  'Rotary Elementary School',
+  'San Isidro Elementary School',
+  'Santo Niño Elementary School',
+  'Topland Elementary School',
+];
 
 export default function RegisterModal({ employee, onClose, onSaved }: Props) {
   const { state } = useAppStore();
@@ -55,7 +79,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         school:         employee.school         ?? '',
       });
     } else {
-      // Always reset to a fully blank form for new registration
       setF({
         id:'', email:'', password:'', surname:'', given:'', suffix:'', maternal:'',
         sex:'', civil:'', dob:'', pob:'', addr:'', spouse:'', edu:'', elig:'',
@@ -69,11 +92,12 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
 
   function set(k: string, v: string) { setF(prev => ({ ...prev, [k]: v })); }
 
+  // Date keys that use the mm/dd/yyyy mask
+  const DATE_KEYS = ['dob', 'dexam', 'appt'];
+
   async function handleSave() {
     setError('');
 
-    // ── Validation ────────────────────────────────────────────
-    // Employee No. must be exactly 7 numeric digits
     const idErr = !/^\d{7}$/.test(f.id.trim())
       ? 'Invalid Employee No. — must be exactly 7 numbers.'
       : null;
@@ -92,7 +116,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     }
     if (isNew && !f.password.trim()) { setError('Password is required for new employees.'); return; }
 
-    // Client-side duplicate checks
     if (isNew && state.db.find(e => e.id === f.id)) {
       setError(`Employee ID "${f.id}" is already in use.`); return;
     }
@@ -105,11 +128,8 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     );
     if (dupEmail) { setError(`Email "${f.email}" is already registered to another employee.`); return; }
 
-    // ── Detect status (category) change ───────────────────────
-    // We check BEFORE saving so we have both old and new status available.
     const statusChanged = !isNew && employee && employee.status !== f.status;
 
-    // ── Build payload ─────────────────────────────────────────
     const payload = {
       id:             f.id.trim(),
       originalId:     isNew ? null : employee?.id,
@@ -136,7 +156,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       account_status: f.account_status,
       pos:            f.pos.trim(),
       school:         f.school.trim(),
-      records:        [],   // never re-send records on personal info edit
+      records:        [],
       conversionLog:  employee?.conversionLog ?? [],
     };
 
@@ -144,7 +164,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     setError('');
 
     try {
-      // ── Save personal info ────────────────────────────────────
       const res = await fetch('/api/save_employee', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,12 +188,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         return;
       }
 
-      // ── Insert conversion record if category changed ──────────
-      // This creates a new era in the leave card with a "Balance Forwarded" row.
-      // The last balance of the old era carries forward to the new era.
       if (statusChanged && employee) {
-        // Fetch FRESH records from DB — local state balances may be stale
-        // because save_row_balance hasn't run yet on the current session.
         let fwdBV = 0;
         let fwdBS = 0;
         try {
@@ -183,7 +197,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           );
           const recData = await recRes.json();
           if (recData.ok && Array.isArray(recData.records)) {
-            // Find the very last non-conversion record
             const freshRecs: Array<{
               _conversion?: boolean;
               setA_balance?: number;
@@ -196,7 +209,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
             }
           }
         } catch {
-          // fallback to local state if fetch fails
           const lastRec = [...(employee.records ?? [])]
             .reverse()
             .find(r => !r._conversion);
@@ -205,41 +217,24 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         }
 
         const conversionRecord = {
-          so:          '',
-          prd:         '',
-          from:        '',
-          to:          '',
-          spec:        '',
-          action:      '',
-          earned:      0,
-          forceAmount: 0,
-          monV:        0,
-          monS:        0,
-          monDV:       0,
-          monDS:       0,
-          monAmount:   0,
-          monDisAmt:   0,
-          trV:         0,
-          trS:         0,
+          so:'', prd:'', from:'', to:'', spec:'', action:'',
+          earned:0, forceAmount:0, monV:0, monS:0, monDV:0, monDS:0,
+          monAmount:0, monDisAmt:0, trV:0, trS:0,
           _conversion: true,
-          fromStatus:  employee.status,          // old category (e.g. "Teaching")
-          toStatus:    f.status,                 // new category (e.g. "Non-Teaching")
+          fromStatus:  employee.status,
+          toStatus:    f.status,
           date:        new Date().toISOString().slice(0, 10),
-          fwdBV,                                 // last Set A balance before conversion
-          fwdBS,                                 // last Set B balance before conversion
+          fwdBV,
+          fwdBS,
         };
 
         await fetch('/api/save_record', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employee_id: f.id.trim(),
-            record:      conversionRecord,
-          }),
+          body: JSON.stringify({ employee_id: f.id.trim(), record: conversionRecord }),
         });
       }
 
-      // ── Build updated Personnel object for local state ────────
       const saved: Personnel = {
         ...(employee ?? ({} as Personnel)),
         id:             f.id.trim(),
@@ -293,15 +288,20 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         value={f[key] || ''}
         onChange={e => {
           let v = e.target.value;
-          if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 7);
-          if (key === 'email') v = v.toLowerCase();
+          if (key === 'id')              v = v.replace(/\D/g, '').slice(0, 7);
+          if (key === 'email')           v = v.toLowerCase();
+          if (DATE_KEYS.includes(key))   v = fmtDateInput(v);   // ← mm/dd/yyyy mask
           set(key, v);
         }}
         placeholder={
-          key === 'id'    ? 'e.g. 2024001' :
-          key === 'email' ? 'juan@deped.gov.ph' : ''
+          key === 'id'               ? 'e.g. 2024001' :
+          key === 'email'            ? 'juan@deped.gov.ph' :
+          DATE_KEYS.includes(key)    ? 'mm/dd/yyyy' : ''
         }
-        maxLength={key === 'id' ? 7 : undefined}
+        maxLength={
+          key === 'id'               ? 7 :
+          DATE_KEYS.includes(key)    ? 10 : undefined
+        }
       />
       {key === 'email' && f.email && !f.email.endsWith('@deped.gov.ph') && (
         <span style={{ fontSize: 10, color: '#e53e3e' }}>⚠️ Must end with @deped.gov.ph</span>
@@ -345,10 +345,10 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           {/* Personal Information */}
           <div className="sdiv">Personal Information</div>
           <div className="ig" style={{ marginBottom: 18 }}>
-            {fi('Surname',         'surname',  'text', undefined, '*')}
-            {fi('Given Name',      'given',    'text', undefined, '*')}
-            {fi('Suffix (Jr/III)', 'suffix')}
-            {fi('Maternal Surname','maternal')}
+            {fi('Surname',          'surname', 'text', undefined, '*')}
+            {fi('Given Name',       'given',   'text', undefined, '*')}
+            {fi('Suffix (Jr/III)',  'suffix')}
+            {fi('Maternal Surname', 'maternal')}
             <div className="f">
               <label>Sex <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
               <input list="sexList" value={f.sex} onChange={e => set('sex', e.target.value)}
@@ -366,28 +366,32 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
                 <option value="Solo Parent"/><option value="Separated"/><option value="Annulled"/>
               </datalist>
             </div>
-            {fi('Date of Birth',   'dob',  'date', undefined, '*')}
-            {fi('Place of Birth',  'pob')}
+
+            {/* ── Date of Birth — mm/dd/yyyy text mask ── */}
+            {fi('Date of Birth (mm/dd/yyyy)', 'dob', 'text', undefined, '*')}
+            {fi('Place of Birth', 'pob')}
             {fi('Present Address', 'addr', 'text', 2, '*')}
-            {fi('Name of Spouse',  'spouse','text', 2)}
+            {fi('Name of Spouse',  'spouse', 'text', 2)}
           </div>
 
           {/* Educational & Civil Service */}
           <div className="sdiv">Educational &amp; Civil Service</div>
           <div className="ig" style={{ marginBottom: 18 }}>
-            {fi('Educational Qualification',        'edu',   'text', 2)}
-            {fi('C.S. Eligibility (Kind of Exam)',  'elig',  'text', 2)}
+            {fi('Educational Qualification',       'edu',   'text', 2)}
+            {fi('C.S. Eligibility (Kind of Exam)', 'elig',  'text', 2)}
             {fi('Rating',     'rating')}
             {fi('TIN Number', 'tin')}
             {fi('Place of Exam', 'pexam')}
-            {fi('Date of Exam',               'dexam','date')}
-            {fi('Date of Original Appointment','appt', 'date')}
+
+            {/* ── Date of Exam — mm/dd/yyyy text mask ── */}
+            {fi('Date of Exam (mm/dd/yyyy)',                'dexam', 'text')}
+            {/* ── Date of Original Appointment — mm/dd/yyyy text mask ── */}
+            {fi('Date of Original Appointment (mm/dd/yyyy)', 'appt', 'text')}
           </div>
 
           {/* Employment Details */}
           <div className="sdiv">Employment Details</div>
 
-          {/* ── Conversion warning ── */}
           {!isNew && employee && f.status !== employee.status && (
             <div style={{ margin: '0 0 14px', padding: '10px 14px', background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: 8 }}>
               <p style={{ color: '#92400e', fontSize: 12, fontWeight: 600, margin: 0 }}>
@@ -416,8 +420,26 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            {fi('Position / Designation',      'pos',   'text', undefined, '*')}
-            {fi('School / Office Assignment',  'school','text', 2, '*')}
+            {fi('Position / Designation', 'pos', 'text', undefined, '*')}
+
+            {/* ── School / Office Assignment — dropdown + manual input ── */}
+            <div className="f" style={{ gridColumn: 'span 2' }}>
+              <label>School / Office Assignment <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
+              <input
+                list="schoolList"
+                value={f.school}
+                onChange={e => set('school', e.target.value)}
+                placeholder="Select or type school/office…"
+                style={{ height:'var(--H)',padding:'0 12px',border:'1.5px solid var(--br)',borderRadius:7,fontSize:12,width:'100%',background:'white',color:'var(--cha)',fontFamily:'Inter,sans-serif' }}
+              />
+              {/* ─────────────────────────────────────────────────────────
+                  ✏️  To edit the school list, update SCHOOL_OPTIONS
+                      at the TOP of this file (around line 27).
+                  ───────────────────────────────────────────────────────── */}
+              <datalist id="schoolList">
+                {SCHOOL_OPTIONS.map(s => <option key={s} value={s} />)}
+              </datalist>
+            </div>
           </div>
 
           {error && (
