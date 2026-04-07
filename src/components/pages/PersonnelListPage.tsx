@@ -47,8 +47,12 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   }, [active, search, fCat, fPos, fSch, fCard, fAcct]);
 
   function handleSaved(emp: Personnel, isNew: boolean) {
-    if (isNew) dispatch({ type: 'ADD_EMPLOYEE', payload: emp });
-    else       dispatch({ type: 'UPDATE_EMPLOYEE', payload: emp });
+    if (isNew) {
+      dispatch({ type: 'ADD_EMPLOYEE', payload: emp });
+    } else {
+      // FIX: pass originalId so UPDATE_EMPLOYEE finds the record even if ID changed
+      dispatch({ type: 'UPDATE_EMPLOYEE', payload: { employee: emp, originalId: editEmp?.id ?? emp.id } });
+    }
     setRegOpen(false); setEditEmp(null);
   }
 
