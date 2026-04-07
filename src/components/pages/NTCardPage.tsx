@@ -386,18 +386,18 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
 
   return (
     <>
-      {segments.slice(0, -1).map((seg, si) => (
-      <EraSection
-  key={si}
-  seg={seg}
-  si={si}
-  emp={emp}
-  isAdmin={isAdmin}
-  onRefresh={onRefresh}
-  onEditRow={onEditRow}   {/* ← add this */}
-  cardType="nt"
-/>
-      ))}
+    {segments.slice(0, -1).map((seg, si) => (
+  <EraSection
+    key={si}
+    seg={seg}
+    si={si}
+    emp={emp}
+    isAdmin={isAdmin}
+    onRefresh={onRefresh}
+    onEditRow={onEditRow}
+    cardType="nt"
+  />
+))}
       <div className="card era-new-section" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
           <table>
