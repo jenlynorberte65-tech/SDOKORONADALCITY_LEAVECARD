@@ -9,12 +9,13 @@ export async function POST(req: Request) {
   try {
     const p = await req.json();
     const id = String(p.id ?? '').trim();
-  return NextResponse.json({ ok: false, error: 'Invalid Employee No. — must be exactly 7 numbers.' }, { status: 400 });
-    
 
-    // Validate: exactly 8 numeric digits
-   if (!/^\d{7}$/.test(id))
-  return NextResponse.json({ ok: false, error: 'Invalid Employee No. — must be exactly 7 numbers.' }, ...{ status: 400 });
+    // Validate: exactly 7 numeric digits
+    if (!/^\d{7}$/.test(id))
+      return NextResponse.json({ ok: false, error: 'Invalid Employee No. — must be exactly 7 numbers.' }, { status: 400 });
+
+    const email = String(p.email ?? '').toLowerCase().trim();
+    if (!email) return NextResponse.json({ ok: false, error: 'Email address is required.' }, { status: 400 });
 
     const email = String(p.email ?? '').toLowerCase().trim();
     if (!email) return NextResponse.json({ ok: false, error: 'Email address is required.' }, { status: 400 });
