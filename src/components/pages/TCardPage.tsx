@@ -395,20 +395,21 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
   }
   segments.push({ status: curStatus, recs: records.slice(segStart), startIdx: segStart, convIdx: -1, conv: null });
 
-  return (
+ return (
     <>
-     {segments.slice(0, -1).map((seg, si) => (
-  <EraSection
-    key={si}
-    seg={seg}
-    si={si}
-    emp={emp}
-    isAdmin={isAdmin}
-    onRefresh={onRefresh}
-    onEditRow={onEdit}   // ← add this line
-    cardType="nt"
-  />
-))}ssName="card era-new-section" style={{ padding: 0 }} id="tTblCard">
+      {segments.slice(0, -1).map((seg, si) => (
+        <EraSection
+          key={si}
+          seg={seg}
+          si={si}
+          emp={emp}
+          isAdmin={isAdmin}
+          onRefresh={onRefresh}
+          onEditRow={onEditRow}
+          cardType="nt"
+        />
+      ))}
+      <div className="card era-new-section" style={{ padding: 0 }} id="tTblCard">
         <div className="tw">
           <table>
             <LeaveTableHeader showAction={isAdmin} />
@@ -422,9 +423,11 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
               })()}
               <SingleTEra
                 records={segments[segments.length - 1].recs}
-                isAdmin={isAdmin} emp={emp}
+                isAdmin={isAdmin}
+                emp={emp}
                 startIdx={segments[segments.length - 1].startIdx}
-                onRefresh={onRefresh} onEditRow={onEditRow}
+                onRefresh={onRefresh}
+                onEditRow={onEditRow}
               />
             </tbody>
           </table>
@@ -432,8 +435,6 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
       </div>
     </>
   );
-}
-
 function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
   records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
   onRefresh: () => void;
