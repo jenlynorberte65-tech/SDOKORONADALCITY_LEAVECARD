@@ -337,7 +337,7 @@ export function getNTAccrualMonthLabel(): string {
 
 // ── Employee ID validation ───────────────────────────────────
 export function validateEmployeeId(id: string): string | null {
-  if (!/^\d{8}$/.test(id)) return 'Invalid Employee ID — must be exactly 8 numbers.';
+ if (!/^\d{7}$/.test(id)) return 'Invalid Employee No. — must be exactly 7 numbers.';
   return null;
 }
 
