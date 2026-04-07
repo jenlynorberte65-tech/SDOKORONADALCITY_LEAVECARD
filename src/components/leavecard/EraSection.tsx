@@ -167,18 +167,23 @@ function NTEraRows({
   // If converting from Teaching → Non-Teaching: fwdBV holds the single
   // teaching balance; use it for BOTH bV and bS (Non-Teaching needs two).
   // If converting from Non-Teaching → Non-Teaching: use fwdBV and fwdBS directly.
-  let bV = 0;
-  let bS = 0;
-  if (conv) {
-    const fromTeaching = conv.fromStatus === 'Teaching';
-    if (fromTeaching) {
-      // Single Teaching balance → seeds both NT accumulators equally
-      bV = conv.fwdBV ?? 0;
-      bS = conv.fwdBV ?? 0;   // intentionally fwdBV for both (same source value)
-    } else {
-      // Non-Teaching → Non-Teaching (or any other → NT): use stored split balances
-      bV = conv.fwdBV ?? 0;
-      bS = conv.fwdBS ?? 0;
+  let fwdBV = 0;
+let fwdBS = 0;
+if (conv) {
+  const fromTeaching = conv.fromStatus === 'Teaching';
+  if (fromTeaching) {
+    fwdBV = conv.fwdBV ?? 0;
+    fwdBS = conv.fwdBV ?? 0;
+  } else {
+    fwdBV = conv.fwdBV ?? 0;
+    fwdBS = conv.fwdBS ?? 0;
+  }
+}
+
+// ── Calculation ALWAYS starts from ZERO ──
+// Balance Forwarded row is display only — excluded from calculation.
+let bV = 0;
+let bS = 0;
     }
   }
 
@@ -271,14 +276,14 @@ function TEraRows({
   // Teaching has a SINGLE running balance (`bal`).
   // When converting FROM Non-Teaching: use fwdBV (the forwarded vacation balance).
   // Era 1 (no conversion): start from 0.
-  let bal = 0;
-  if (conv) {
-    // fwdBV always holds the balance that should seed the Teaching era.
-    // (The save_conversion logic must store the correct value in fwdBV.)
-    bal = conv.fwdBV ?? 0;
-  }
+// ── Read forwarded balance for DISPLAY only (FwdRow) ──
+// Calculation always starts from ZERO per confirmed rule.
 
-  const fwdBal = bal; // save seed value for FwdRow display
+  const fwdBal = conv ? (conv.fwdBV ?? 0) : 0;
+
+// ── Calculation ALWAYS starts from ZERO ──
+// Balance Forwarded row is display only — excluded from calculation.
+let bal = 0;
 
   return (
     <>
