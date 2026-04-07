@@ -2,27 +2,22 @@
 //  SDO City of Koronadal — Leave Management System
 //  types/index.ts — All shared TypeScript types
 // ============================================================
-
 export type UserRole = 'admin' | 'encoder' | 'school_admin' | 'employee';
-
 export interface AdminConfig {
   id: string;
   password: string;
   name: string;
 }
-
 export interface SchoolAdminConfig {
   id: string;
   dbId: number;
   name: string;
 }
-
 export interface SchoolAdminAccount {
   id: number;
   login_id: string;
   name: string;
 }
-
 export interface SessionState {
   role: UserRole | null;
   isAdmin: boolean;
@@ -34,7 +29,6 @@ export interface SessionState {
   encoderCfg: AdminConfig;
   schoolAdminCfg: SchoolAdminConfig;
 }
-
 export interface LeaveRecord {
    _record_id?: number;
   _conversion?: boolean;
@@ -72,7 +66,6 @@ export interface LeaveRecord {
   fwdBV?: number;
   fwdBS?: number;
 }
-
 export interface Personnel {
   id: string;
   email: string;
@@ -104,14 +97,12 @@ export interface Personnel {
   archived?: boolean;
   archiveReason?: string;
 }
-
 export interface ConversionLogEntry {
   from: string;
   to: string;
   date: string;
   pos: string;
 }
-
 export interface LeaveClassification {
   isAcc: boolean;
   isMon: boolean;
@@ -127,7 +118,6 @@ export interface LeaveClassification {
   isSetA_noDeduct: boolean;
   isVacation: boolean;
 }
-
 export interface RowBalanceUpdate {
   [key: string]: unknown;
   record_id: number;
@@ -141,7 +131,6 @@ export interface RowBalanceUpdate {
   setB_balance: number;
   setB_wop: number;
 }
-
 export interface ApiResponse<T = Record<string, unknown>> {
   ok: boolean;
   error?: string;
@@ -160,9 +149,8 @@ export interface ApiResponse<T = Record<string, unknown>> {
   admin?: { login_id: string; name: string };
   encoder?: { login_id: string; name: string };
 }
-
-export type Page = 'list' | 'cards' | 'nt' | 't' | 'user' | 'sa';
-
+// Added 'home' — landing page after login for admin/encoder/school_admin
+export type Page = 'home' | 'list' | 'cards' | 'nt' | 't' | 'user' | 'sa';
 export interface AccrualRecord {
   key: string;
   count: number;
