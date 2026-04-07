@@ -16,24 +16,51 @@ export default function App() {
         const s = JSON.parse(raw);
 
         if (s.isSchoolAdmin && s.schoolAdminCfg) {
-          dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: s.schoolAdminCfg.name, loginId: s.schoolAdminCfg.id, dbId: s.schoolAdminCfg.dbId } });
+          dispatch({
+            type: 'LOGIN_SCHOOL_ADMIN',
+            payload: {
+              name:    s.schoolAdminCfg.name,
+              loginId: s.schoolAdminCfg.id,
+              dbId:    s.schoolAdminCfg.dbId,
+            },
+          });
           await loadDB();
-          dispatch({ type: 'SET_PAGE', payload: 'sa' });
+          // LOGIN_SCHOOL_ADMIN already sets page to 'home'; only override if
+          // the saved page was something other than 'home' or 'sa'.
+          const savedPage = s.page || 'home';
+          dispatch({ type: 'SET_PAGE', payload: savedPage as never });
 
         } else if (s.isAdmin) {
-          dispatch({ type: 'LOGIN_ADMIN', payload: { name: s.isEncoder ? 'Encoder' : 'Administrator', loginId: '', isEncoder: s.isEncoder || false } });
+          dispatch({
+            type: 'LOGIN_ADMIN',
+            payload: {
+              name:      s.isEncoder ? 'Encoder' : 'Administrator',
+              loginId:   '',
+              isEncoder: s.isEncoder || false,
+            },
+          });
           apiCall('get_admin_cfg', {}, 'GET').then(res => {
-            if (res.ok) dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: res.admin ?? undefined, encoder: res.encoder ?? undefined } });
+            if (res.ok)
+              dispatch({
+                type: 'SET_ADMIN_CFG',
+                payload: {
+                  admin:   res.admin   ?? undefined,
+                  encoder: res.encoder ?? undefined,
+                },
+              });
           });
           await loadDB();
 
-          // Restore page — if on nt/t card, also reload records for that employee
-          const page = s.page || 'list';
+          // Restore page — if on nt/t card, also reload records
+          const page = s.page || 'home';
           if ((page === 'nt' || page === 't') && s.curId) {
             dispatch({ type: 'SET_CUR_ID', payload: s.curId });
             const res = await apiCall('get_records', { employee_id: s.curId }, 'GET');
             if (res.ok && res.records) {
-              dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: s.curId, records: res.records } });
+              dispatch({
+                type: 'SET_EMPLOYEE_RECORDS',
+                payload: { id: s.curId, records: res.records },
+              });
             }
           }
           dispatch({ type: 'SET_PAGE', payload: page as never });
@@ -44,6 +71,7 @@ export default function App() {
         }
       } catch { /* ignore */ }
     }
+
     restoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
