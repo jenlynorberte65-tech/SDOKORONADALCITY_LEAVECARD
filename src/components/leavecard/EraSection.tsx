@@ -40,10 +40,8 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
 
     setDeleting(true);
     try {
-      // Collect all record_ids in this era (regular records + the conversion record)
       const ids: number[] = [];
       seg.recs.forEach(r => { if (r._record_id) ids.push(r._record_id); });
-      // Also delete the conversion record that introduced this era
       if (seg.conv && seg.conv._record_id) ids.push(seg.conv._record_id);
 
       await Promise.all(
@@ -72,7 +70,6 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
         <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 400, color: 'var(--mu)' }}>
           Click to expand / collapse
         </span>
-        {/* ── Era delete button (admin only, no-print) ── */}
         {isAdmin && (
           <button
             className="btn no-print"
@@ -131,24 +128,11 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
 // ─────────────────────────────────────────────────────────────
 //  NT Era Rows
 //
-//  FIX: Seed bV / bS from the conversion record's stored forwarded
-//  balances (fwdBV / fwdBS) so this era is 100% isolated and
-//  unaffected by changes in any other era.
-//
-//  Seeding rules (applied once, at the start of this era only):
-//
-//  Case A — Converting FROM Teaching → TO Non-Teaching:
-//    Teaching has a SINGLE balance. It is stored in conv.fwdBV.
-//    Both bV (vacation) and bS (sick) start from that same value
-//    because Non-Teaching needs two independent running balances,
-//    and the incoming Teaching balance becomes the seed for both.
-//    conv.fwdBS will equal conv.fwdBV (set by save_conversion logic).
-//
-//  Case B — Converting FROM Non-Teaching → TO Non-Teaching (re-conversion):
-//    fwdBV = vacation balance, fwdBS = sick balance. Use directly.
-//
-//  Case C — Era 1 (no conversion, employee started as NT):
-//    No conv record → seed both from 0.
+//  FIX (Problems 1, 2, 3):
+//  - fwdBV / fwdBS are used ONLY for the Balance Forwarded display row.
+//  - bV / bS always start from ZERO — Balance Forwarded is display only.
+//  - Previous era's last row is never affected because calculation
+//    never reads from fwdBV/fwdBS into the running balance.
 // ─────────────────────────────────────────────────────────────
 function NTEraRows({
   records, conv, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
@@ -162,38 +146,28 @@ function NTEraRows({
   onEditRow: (idx: number, record: LeaveRecord) => void;
   eraStatus: string;
 }) {
-  // ── Seed balances from the conversion record (ISOLATED per era) ──
-  // If there is no conversion record, this is Era 1 — start from 0.
-  // If converting from Teaching → Non-Teaching: fwdBV holds the single
-  // teaching balance; use it for BOTH bV and bS (Non-Teaching needs two).
-  // If converting from Non-Teaching → Non-Teaching: use fwdBV and fwdBS directly.
+  // ── Display values for Balance Forwarded row ONLY ──
+  // These are never used in any calculation.
   let fwdBV = 0;
-let fwdBS = 0;
-if (conv) {
-  const fromTeaching = conv.fromStatus === 'Teaching';
-  if (fromTeaching) {
-    fwdBV = conv.fwdBV ?? 0;
-    fwdBS = conv.fwdBV ?? 0;
-  } else {
-    fwdBV = conv.fwdBV ?? 0;
-    fwdBS = conv.fwdBS ?? 0;
-  }
-}
-
-// ── Calculation ALWAYS starts from ZERO ──
-// Balance Forwarded row is display only — excluded from calculation.
-let bV = 0;
-let bS = 0;
+  let fwdBS = 0;
+  if (conv) {
+    const fromTeaching = conv.fromStatus === 'Teaching';
+    if (fromTeaching) {
+      fwdBV = conv.fwdBV ?? 0;
+      fwdBS = conv.fwdBV ?? 0;  // single teaching balance seeds both display columns
+    } else {
+      fwdBV = conv.fwdBV ?? 0;
+      fwdBS = conv.fwdBS ?? 0;
     }
   }
 
-  // The FwdRow display uses the same seeded values so it matches row computation.
-  const fwdBV = bV;
-  const fwdBS = bS;
+  // ── Calculation ALWAYS starts from ZERO ──
+  // Balance Forwarded row is display only — excluded from calculation.
+  let bV = 0;
+  let bS = 0;
 
   return (
     <>
-      {/* Show the Balance Forwarded row only if there was a conversion into this era */}
       {conv && (
         <FwdRow conv={conv} bV={fwdBV} bS={fwdBS} status={eraStatus} />
       )}
@@ -244,21 +218,11 @@ let bS = 0;
 // ─────────────────────────────────────────────────────────────
 //  Teaching Era Rows
 //
-//  FIX: Seed `bal` from the conversion record's stored forwarded
-//  balance (fwdBV) so this era is 100% isolated and unaffected
-//  by changes in any other era.
-//
-//  Seeding rules:
-//
-//  Case A — Converting FROM Non-Teaching → TO Teaching:
-//    Non-Teaching has TWO balances (fwdBV = vacation, fwdBS = sick).
-//    Teaching uses a SINGLE balance. Use fwdBV (vacation/force balance)
-//    as the seed for the Teaching balance (standard government rule:
-//    the vacation leave balance carries over as the teaching balance).
-//    If your rule is to use fwdBS instead, swap fwdBV → fwdBS below.
-//
-//  Case B — No conversion (Era 1, employee started as Teaching):
-//    No conv record → seed from 0.
+//  FIX (Problems 1, 2, 3):
+//  - fwdBal is used ONLY for the Balance Forwarded display row.
+//  - bal always starts from ZERO — Balance Forwarded is display only.
+//  - Previous era's last row is never affected because calculation
+//    never reads from fwdBal into the running balance.
 // ─────────────────────────────────────────────────────────────
 function TEraRows({
   records, conv, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
@@ -272,22 +236,16 @@ function TEraRows({
   onEditRow: (idx: number, record: LeaveRecord) => void;
   eraStatus: string;
 }) {
-  // ── Seed Teaching balance from the conversion record (ISOLATED per era) ──
-  // Teaching has a SINGLE running balance (`bal`).
-  // When converting FROM Non-Teaching: use fwdBV (the forwarded vacation balance).
-  // Era 1 (no conversion): start from 0.
-// ── Read forwarded balance for DISPLAY only (FwdRow) ──
-// Calculation always starts from ZERO per confirmed rule.
-
+  // ── Display value for Balance Forwarded row ONLY ──
+  // Never used in any calculation.
   const fwdBal = conv ? (conv.fwdBV ?? 0) : 0;
 
-// ── Calculation ALWAYS starts from ZERO ──
-// Balance Forwarded row is display only — excluded from calculation.
-let bal = 0;
+  // ── Calculation ALWAYS starts from ZERO ──
+  // Balance Forwarded row is display only — excluded from calculation.
+  let bal = 0;
 
   return (
     <>
-      {/* Show the Balance Forwarded row only if there was a conversion into this era */}
       {conv && (
         <FwdRow conv={conv} bV={fwdBal} bS={fwdBal} status={eraStatus} />
       )}
@@ -342,7 +300,7 @@ let bal = 0;
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Per-row action menu (Edit / Delete) — same as main card
+//  Per-row action menu (Edit / Delete)
 // ─────────────────────────────────────────────────────────────
 function EraRowMenu({
   record, idx, emp, onRefresh, onEditRow,
