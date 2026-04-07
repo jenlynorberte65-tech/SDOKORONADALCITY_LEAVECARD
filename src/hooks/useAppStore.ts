@@ -32,8 +32,8 @@ export type AppAction =
   | { type: 'SET_PAGE'; payload: Page }
   | { type: 'SET_CUR_ID'; payload: string | null }
   // Supports both:
-  //   { type: 'UPDATE_EMPLOYEE', payload: Personnel }                         (legacy)
-  //   { type: 'UPDATE_EMPLOYEE', payload: { employee: Personnel; originalId: string } } (new)
+  //   { type: 'UPDATE_EMPLOYEE', payload: Personnel }                                    (legacy)
+  //   { type: 'UPDATE_EMPLOYEE', payload: { employee: Personnel; originalId: string } }  (new — when ID changed)
   | { type: 'UPDATE_EMPLOYEE'; payload: Personnel | { employee: Personnel; originalId: string } }
   | { type: 'ADD_EMPLOYEE'; payload: Personnel }
   | { type: 'SET_EMPLOYEE_RECORDS'; payload: { id: string; records: Personnel['records'] } }
@@ -48,7 +48,7 @@ export const initialState: AppState = {
   isSchoolAdmin: false,
   role: null,
   curId: null,
-  page: 'list',
+  page: 'home',
   adminCfg:       { id: '', password: '', name: 'Administrator' },
   encoderCfg:     { id: '', password: '', name: 'Encoder' },
   schoolAdminCfg: { id: '', dbId: 0,    name: 'School Admin' },
@@ -76,6 +76,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         encoderCfg: action.payload.isEncoder
           ? { ...state.encoderCfg, id: action.payload.loginId, name: action.payload.name }
           : state.encoderCfg,
+        page: 'home', // ← redirect to homepage on login
       };
 
     case 'LOGIN_SCHOOL_ADMIN':
@@ -86,7 +87,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         isEncoder: false,
         role: 'school_admin',
         schoolAdminCfg: { id: action.payload.loginId, dbId: action.payload.dbId, name: action.payload.name },
-        page: 'sa',
+        page: 'home', // ← redirect to homepage on login (was 'sa')
       };
 
     case 'LOGIN_EMPLOYEE':
