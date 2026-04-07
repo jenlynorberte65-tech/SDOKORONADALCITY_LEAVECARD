@@ -15,10 +15,10 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps) {
   const { state } = useAppStore();
-  const [showAdminProfile, setShowAdminProfile]   = useState(false);
+  const [showAdminProfile,   setShowAdminProfile]   = useState(false);
   const [showEncoderProfile, setShowEncoderProfile] = useState(false);
-  const [showSAProfile, setShowSAProfile]         = useState(false);
-  const [showLogout, setShowLogout]               = useState(false);
+  const [showSAProfile,      setShowSAProfile]      = useState(false);
+  const [showLogout,         setShowLogout]         = useState(false);
 
   const isAdminOnly = state.isAdmin && !state.isEncoder;
   const displayName = state.isSchoolAdmin
@@ -34,14 +34,19 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
 
   function handleUserChipClick() {
     onClose();
-    if (state.isSchoolAdmin) setShowSAProfile(true);
+    if (state.isSchoolAdmin)  setShowSAProfile(true);
     else if (state.isEncoder) setShowEncoderProfile(true);
-    else setShowAdminProfile(true);
+    else                      setShowAdminProfile(true);
   }
 
+  // ── Nav items per role ────────────────────────────────────
   const navItems = state.isSchoolAdmin
-    ? [{ id: 'sa', icon: '🏫', label: 'Personnel Management' }]
+    ? [
+        { id: 'home', icon: '🏠', label: 'Home' },
+        { id: 'sa',   icon: '🏫', label: 'Personnel Management' },
+      ]
     : [
+        { id: 'home',  icon: '🏠', label: 'Home' },
         { id: 'list',  icon: '👥', label: 'Personnel List' },
         { id: 'cards', icon: '📋', label: 'Leave Cards' },
       ];
@@ -51,10 +56,14 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
       <div className={`sb-overlay${open ? ' open' : ''}`} onClick={onClose} />
       <div className={`sidebar${open ? ' open' : ''}`}>
         <div className="sb-head">
-          <img className="sb-logo"
+          <img
+            className="sb-logo"
             src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg"
             alt="SDO"
-            onError={e => { e.currentTarget.src = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'; }}
+            onError={e => {
+              e.currentTarget.src =
+                'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg';
+            }}
           />
           <div className="sb-brand">
             <div className="sb-brand-title">SDO City of Koronadal</div>
@@ -62,6 +71,7 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
           </div>
           <button className="sb-close" onClick={onClose}>✕</button>
         </div>
+
         <div className="sb-user" onClick={handleUserChipClick}>
           <div className="sb-av">{(displayName || 'A')[0].toUpperCase()}</div>
           <div>
@@ -69,6 +79,7 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
             <div className="sb-urole">{roleLabel}</div>
           </div>
         </div>
+
         <nav className="sb-nav">
           {navItems.map(item => (
             <div
@@ -114,10 +125,14 @@ export function Topbar({ onMenuClick, showMenu, onLogout, showLogoutBtn }: Topba
               <div className="tb-divider" />
             </>
           )}
-          <img className="tb-logo"
+          <img
+            className="tb-logo"
             src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg"
             alt="SDO"
-            onError={e => { e.currentTarget.src = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'; }}
+            onError={e => {
+              e.currentTarget.src =
+                'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg';
+            }}
           />
           <div className="tb-divider" />
           <div className="tb-text">
