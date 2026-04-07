@@ -31,22 +31,32 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: `${label} is required.` }, { status: 400 });
     }
 
-    // Duplicate email check
+    // FIX: use originalId (the ID the record was loaded with) for all lookups.
+    // If the client didn't send it (e.g. legacy call), fall back to the new id.
+    const originalId = p.originalId ? String(p.originalId).trim() : id;
+
+    // Duplicate email check — exclude the current record by its ORIGINAL id
     const [dupEmail] = await pool.query<RowDataPacket[]>(
-      'SELECT employee_id FROM personnel WHERE LOWER(email)=? AND employee_id!=?', [email, id]
+      'SELECT employee_id FROM personnel WHERE LOWER(email)=? AND employee_id!=?',
+      [email, originalId]   // FIX: was `id` (new id), now `originalId`
     );
     if ((dupEmail as RowDataPacket[]).length > 0)
       return NextResponse.json({ ok: false, error: `Email "${email}" is already registered to another employee.` }, { status: 400 });
 
+    // Determine new vs existing using ORIGINAL id
     const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM personnel WHERE employee_id=?', [id]
+      'SELECT * FROM personnel WHERE employee_id=?',
+      [originalId]          // FIX: was `id` (new id), now `originalId`
     );
     const isNew = (existing as RowDataPacket[]).length === 0;
 
     // Resolve password
     let pw = p.password ?? '';
     if (!isNew && !pw) {
-      const [cur] = await pool.query<RowDataPacket[]>('SELECT password FROM personnel WHERE employee_id=?', [id]);
+      const [cur] = await pool.query<RowDataPacket[]>(
+        'SELECT password FROM personnel WHERE employee_id=?',
+        [originalId]        // FIX: look up password by original id
+      );
       pw = (cur as RowDataPacket[])[0]?.password ?? '';
     }
     if (isNew && !pw)
@@ -81,8 +91,13 @@ export async function POST(req: Request) {
     };
 
     if (!isNew) {
+      // FIX: UPDATE by originalId so the WHERE clause finds the right row,
+      // even when the employee_id column itself is being changed to a new value.
       const sets = Object.keys(data).map(k => `\`${k}\`=?`).join(',');
-      await pool.query(`UPDATE personnel SET ${sets} WHERE employee_id=?`, [...Object.values(data), id]);
+      await pool.query(
+        `UPDATE personnel SET ${sets} WHERE employee_id=?`,
+        [...Object.values(data), originalId]  // FIX: was `id`, now `originalId`
+      );
     } else {
       const cols = Object.keys(data).map(k => `\`${k}\``).join(',');
       const phs  = Object.keys(data).map(() => '?').join(',');
@@ -91,7 +106,8 @@ export async function POST(req: Request) {
 
     // Sync records if provided (conversion case)
     if (Array.isArray(p.records) && p.records.length > 0) {
-      await pool.query('DELETE FROM leave_records WHERE employee_id=?', [id]);
+      // FIX: delete by originalId in case id changed, then insert under new id
+      await pool.query('DELETE FROM leave_records WHERE employee_id=?', [originalId]);
       for (let i = 0; i < p.records.length; i++) {
         const row = recordToRow(p.records[i] as LeaveRecord, id, i);
         const cols = Object.keys(row).map(k => `\`${k}\``).join(',');
