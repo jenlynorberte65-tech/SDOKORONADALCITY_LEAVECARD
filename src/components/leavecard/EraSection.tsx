@@ -143,10 +143,10 @@ function NTEraRows({
   // For Teaching → Non-Teaching: Teaching has a single balance stored in fwdBV.
   // Both bV (vacation) and bS (sick) must start from that same value.
   // For Non-Teaching → Teaching: fwdBV=vacation, fwdBS=sick are already correct.
-  const convRec    = records.find(r => r._conversion);
-  const fromT      = convRec?.fromStatus === 'Teaching';
-  let bV = convRec?.fwdBV ?? 0;
-  let bS = fromT ? (convRec?.fwdBV ?? 0) : (convRec?.fwdBS ?? 0);
+ // REPLACE:
+// Era 1 old sections always start from 0 — they compute their own running balance
+let bV = 0;
+let bS = 0;
 
   return (
     <>
@@ -210,8 +210,8 @@ function TEraRows({
   onEditRow: (idx: number, record: LeaveRecord) => void;
 }) {
   // Seed from forwarded balance if a conversion record exists in this segment
-  const convRec = records.find(r => r._conversion);
-  let bal = convRec?.fwdBV ?? 0;
+ // REPLACE:
+let bal = 0;
 
   return (
     <>
