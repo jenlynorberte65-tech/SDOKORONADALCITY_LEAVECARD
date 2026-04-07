@@ -105,10 +105,9 @@ export async function POST(req: Request) {
     }
 
     // Sync records if provided (conversion case)
-    if (Array.isArray(p.records) && p.records.length > 0) {
-      // FIX: delete by originalId in case id changed, then insert under new id
-      await pool.query('DELETE FROM leave_records WHERE employee_id=?', [originalId]);
-      for (let i = 0; i < p.records.length; i++) {
+   if (isNew && Array.isArray(p.records) && p.records.length > 0) {
+  await pool.query('DELETE FROM leave_records WHERE employee_id=?', [originalId]);
+  for (let i = 0; i < p.records.length; i++) {
         const row = recordToRow(p.records[i] as LeaveRecord, id, i);
         const cols = Object.keys(row).map(k => `\`${k}\``).join(',');
         const phs  = Object.keys(row).map(() => '?').join(',');
