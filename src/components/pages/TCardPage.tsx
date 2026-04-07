@@ -433,8 +433,9 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
           </table>
         </div>
       </div>
-    </>
+   </>
   );
+}
 function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
   records: LeaveRecord[]; isAdmin: boolean; emp: Personnel; startIdx: number;
   onRefresh: () => void;
