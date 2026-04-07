@@ -86,6 +86,10 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     if (isNew && state.db.find(e => e.id === f.id)) {
       setError(`Employee ID "${f.id}" is already in use.`); return;
     }
+    // When editing, allow same ID but block if changed to one that belongs to someone else
+    if (!isNew && f.id !== employee?.id && state.db.find(e => e.id === f.id)) {
+      setError(`Employee ID "${f.id}" is already in use by another employee.`); return;
+    }
     const dupEmail = state.db.find(
       e => e.email?.toLowerCase() === f.email.toLowerCase().trim() && e.id !== f.id
     );
@@ -204,6 +208,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       <input
         type={type}
         value={f[key] || ''}
+
         onChange={e => {
           let v = e.target.value;
           if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 8);
@@ -215,7 +220,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           key === 'email' ? 'juan@deped.gov.ph' : ''
         }
         maxLength={key === 'id' ? 8 : undefined}
-        style={key === 'id' && !isNew ? { background: '#f0f0f0', cursor: 'not-allowed' } : {}}
+
       />
       {key === 'email' && f.email && !f.email.endsWith('@deped.gov.ph') && (
         <span style={{ fontSize: 10, color: '#e53e3e' }}>⚠️ Must end with @deped.gov.ph</span>
