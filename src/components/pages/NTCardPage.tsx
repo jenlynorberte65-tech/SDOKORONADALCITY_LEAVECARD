@@ -15,6 +15,8 @@ const PDF_W_MM   = 215.9;
 const PDF_H_MM   = 330.2;
 const MARGIN_MM  = 6;
 
+const LOGO_URL = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg';
+
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
@@ -312,6 +314,7 @@ export default function NTCardPage({ onBack }: Props) {
       <div className="card" id="ntCard">
         <div className="ch grn center" style={{ gap: 12 }}>
           <img
+            src={LOGO_URL}
             alt="Koronadal City Division"
             style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
             crossOrigin="anonymous"
