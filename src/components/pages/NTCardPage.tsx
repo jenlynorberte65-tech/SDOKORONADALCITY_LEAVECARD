@@ -394,7 +394,6 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
     emp={emp}
     isAdmin={isAdmin}
     onRefresh={onRefresh}
-    onEdit={onEdit}
     cardType="nt"
   />
 ))}
