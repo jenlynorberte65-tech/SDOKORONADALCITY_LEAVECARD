@@ -17,8 +17,6 @@ export async function POST(req: Request) {
     const email = String(p.email ?? '').toLowerCase().trim();
     if (!email) return NextResponse.json({ ok: false, error: 'Email address is required.' }, { status: 400 });
 
-    const email = String(p.email ?? '').toLowerCase().trim();
-    if (!email) return NextResponse.json({ ok: false, error: 'Email address is required.' }, { status: 400 });
     if (!email.endsWith('@deped.gov.ph'))
       return NextResponse.json({ ok: false, error: 'Email must use @deped.gov.ph domain.' }, { status: 400 });
 
