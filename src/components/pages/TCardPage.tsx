@@ -397,10 +397,18 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
 
   return (
     <>
-      {segments.slice(0, -1).map((seg, si) => (
-        <EraSection key={si} seg={seg} si={si} emp={emp} isAdmin={isAdmin} onRefresh={onRefresh} cardType="t" />
-      ))}
-      <div className="card era-new-section" style={{ padding: 0 }} id="tTblCard">
+     {segments.slice(0, -1).map((seg, si) => (
+  <EraSection
+    key={si}
+    seg={seg}
+    si={si}
+    emp={emp}
+    isAdmin={isAdmin}
+    onRefresh={onRefresh}
+    onEditRow={onEdit}   // ← add this line
+    cardType="nt"
+  />
+))}ssName="card era-new-section" style={{ padding: 0 }} id="tTblCard">
         <div className="tw">
           <table>
             <LeaveTableHeader showAction={isAdmin} />
