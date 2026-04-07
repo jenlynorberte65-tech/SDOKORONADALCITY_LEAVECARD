@@ -386,7 +386,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
 
   return (
     <>
-    {segments.slice(0, -1).map((seg, si) => (
+  {segments.slice(0, -1).map((seg, si) => (
   <EraSection
     key={si}
     seg={seg}
@@ -394,6 +394,7 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
     emp={emp}
     isAdmin={isAdmin}
     onRefresh={onRefresh}
+    onEditRow={onEdit}   // ← add this line
     cardType="nt"
   />
 ))}
