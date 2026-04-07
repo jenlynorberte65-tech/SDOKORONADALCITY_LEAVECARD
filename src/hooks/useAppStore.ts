@@ -31,7 +31,7 @@ export type AppAction =
   | { type: 'LOGOUT' }
   | { type: 'SET_PAGE'; payload: Page }
   | { type: 'SET_CUR_ID'; payload: string | null }
-  | { type: 'UPDATE_EMPLOYEE'; payload: Personnel }
+  | { type: 'UPDATE_EMPLOYEE'; payload: { employee: Personnel; originalId: string } }  // FIX: added originalId
   | { type: 'ADD_EMPLOYEE'; payload: Personnel }
   | { type: 'SET_EMPLOYEE_RECORDS'; payload: { id: string; records: Personnel['records'] } }
   | { type: 'SET_ADMIN_CFG'; payload: { admin?: Partial<AdminConfig>; encoder?: Partial<AdminConfig> } }
@@ -95,10 +95,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, curId: action.payload };
 
     case 'UPDATE_EMPLOYEE': {
-      const idx = state.db.findIndex(e => e.id === action.payload.id);
+      // FIX: find by originalId (the old ID in state.db), not the new id.
+      // This ensures the correct record is replaced even when the ID itself changed.
+      const { employee, originalId } = action.payload;
+      const idx = state.db.findIndex(e => e.id === originalId);
       if (idx === -1) return state;
       const db = [...state.db];
-      db[idx] = action.payload;
+      db[idx] = employee;
       return { ...state, db };
     }
 
