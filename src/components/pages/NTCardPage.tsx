@@ -15,6 +15,8 @@ const PDF_W_MM   = 215.9;
 const PDF_H_MM   = 330.2;
 const MARGIN_MM  = 6;
 
+const LOGO_URL = 'https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg';
+
 const PRINT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
@@ -66,7 +68,8 @@ const PRINT_STYLES = `
   @page{size:8.5in 13in portrait;margin:10mm 8mm;}
 `;
 
-function buildPrintHTML(contentHTML: string, title: string): string {
+function buildPrintHTML(contentHTML: string, title: string, logoDataUrl?: string): string {
+  const logoSrc = logoDataUrl || LOGO_URL;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -76,9 +79,7 @@ function buildPrintHTML(contentHTML: string, title: string): string {
 </head>
 <body>
   <div class="print-header">
-    <img src="https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2019/11/korlogo.jpg"
-         crossorigin="anonymous"
-         onerror="this.src='https://lrmdskorcitydiv.wordpress.com/wp-content/uploads/2020/05/korlogo2.jpg'" />
+    <img src="${logoSrc}" crossorigin="anonymous" />
     <div class="print-header-text">
       <div class="republic">Republic of the Philippines &bull; Department of Education</div>
       <div class="agency">SDO City of Koronadal &mdash; Region XII</div>
@@ -90,11 +91,29 @@ function buildPrintHTML(contentHTML: string, title: string): string {
 </html>`;
 }
 
+async function fetchLogoDataUrl(): Promise<string> {
+  try {
+    const res = await fetch(LOGO_URL, { mode: 'cors' });
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return LOGO_URL;
+  }
+}
+
 async function buildPDF(contentHTML: string): Promise<import('jspdf').jsPDF | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas'),
   ]);
+
+  const logoDataUrl = await fetchLogoDataUrl();
+  const fullHTML = buildPrintHTML(contentHTML, 'Leave Card', logoDataUrl);
 
   const iframe = document.createElement('iframe');
   iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${LEGAL_W_PX}px;height:${LEGAL_H_PX}px;border:none;visibility:hidden;`;
@@ -102,13 +121,13 @@ async function buildPDF(contentHTML: string): Promise<import('jspdf').jsPDF | nu
 
   const iDoc = iframe.contentDocument!;
   iDoc.open();
-  iDoc.write(buildPrintHTML(contentHTML, 'Leave Card'));
+  iDoc.write(fullHTML);
   iDoc.close();
 
   await new Promise<void>(res => {
-    if (iframe.contentDocument?.readyState === 'complete') { setTimeout(res, 800); return; }
-    iframe.addEventListener('load', () => setTimeout(res, 800), { once: true });
-    setTimeout(res, 2000);
+    if (iframe.contentDocument?.readyState === 'complete') { setTimeout(res, 1000); return; }
+    iframe.addEventListener('load', () => setTimeout(res, 1000), { once: true });
+    setTimeout(res, 2500);
   });
 
   const body = iDoc.body as HTMLElement;
@@ -152,6 +171,37 @@ async function buildPDF(contentHTML: string): Promise<import('jspdf').jsPDF | nu
   return pdf;
 }
 
+function triggerPrint(contentHTML: string): void {
+  const printHTML = buildPrintHTML(contentHTML, 'Leave Card', LOGO_URL);
+
+  const container = document.createElement('div');
+  container.id = '__print_container__';
+  container.innerHTML = printHTML;
+  container.style.display = 'none';
+  document.body.appendChild(container);
+
+  const styleTag = document.createElement('style');
+  styleTag.id = '__print_styles__';
+  styleTag.innerHTML = `
+    @media print {
+      body > *:not(#__print_container__) { display: none !important; }
+      #__print_container__ { display: block !important; }
+      ${PRINT_STYLES}
+    }
+  `;
+  document.head.appendChild(styleTag);
+
+  window.print();
+
+  const cleanup = () => {
+    document.getElementById('__print_container__')?.remove();
+    document.getElementById('__print_styles__')?.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(cleanup, 3000);
+}
+
 function getPageContent(): string {
   const pageEl = document.querySelector<HTMLElement>('.page.on');
   if (!pageEl) return '';
@@ -193,6 +243,7 @@ export default function NTCardPage({ onBack }: Props) {
 
   useEffect(() => { if (curId) refresh(); }, [curId]);
 
+  /** Download PDF directly — no new tab */
   async function handleDownload() {
     if (downloading) return;
     setDownloading(true);
@@ -201,22 +252,22 @@ export default function NTCardPage({ onBack }: Props) {
       if (!content) { alert('No content found.'); return; }
       const pdf = await buildPDF(content);
       if (pdf) pdf.save(`LeaveCard_NT_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('PDF error:', err);
+      alert('PDF generation failed. Please try again.');
     } finally {
       setDownloading(false);
     }
   }
 
-  async function handlePrint() {
+  /** Print directly — no new tab */
+  function handlePrint() {
     if (printing) return;
     setPrinting(true);
     try {
       const content = getPageContent();
-      if (!content) return;
-      const win = window.open('', '_blank');
-      if (!win) { alert('Please allow popups to print.'); return; }
-      win.document.write(buildPrintHTML(content, 'NT Leave Card'));
-      win.document.close();
-      win.addEventListener('load', () => { win.focus(); win.print(); });
+      if (!content) { alert('No content found.'); return; }
+      triggerPrint(content);
     } finally {
       setPrinting(false);
     }
@@ -246,6 +297,7 @@ export default function NTCardPage({ onBack }: Props) {
 
   return (
     <div>
+      {/* ── Top action bar ── */}
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
         <button className="btn b-slt" onClick={onBack}>⬅ Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -258,8 +310,17 @@ export default function NTCardPage({ onBack }: Props) {
         </div>
       </div>
 
+      {/* ── UI card header with logo ── */}
       <div className="card" id="ntCard">
-        <div className="ch grn center">📋 Non-Teaching Personnel Leave Record</div>
+        <div className="ch grn center" style={{ gap: 12 }}>
+          <img
+            src={LOGO_URL}
+            alt="Koronadal City Division"
+            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+            crossOrigin="anonymous"
+          />
+          <span>📋 Non-Teaching Personnel Leave Record</span>
+        </div>
         <div className="cb"><ProfileBlock e={emp as never} /></div>
       </div>
 
