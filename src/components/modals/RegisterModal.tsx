@@ -55,9 +55,16 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         school:         employee.school         ?? '',
       });
     } else {
-      setF({ ...EMPTY });
+      // Always reset to a fully blank form for new registration
+      setF({
+        id:'', email:'', password:'', surname:'', given:'', suffix:'', maternal:'',
+        sex:'', civil:'', dob:'', pob:'', addr:'', spouse:'', edu:'', elig:'',
+        rating:'', tin:'', pexam:'', dexam:'', appt:'',
+        status:'Teaching', account_status:'active', pos:'', school:'',
+      });
     }
     setError('');
+    setShowPw(false);
   }, [employee]);
 
   function set(k: string, v: string) { setF(prev => ({ ...prev, [k]: v })); }
@@ -66,7 +73,10 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     setError('');
 
     // ── Validation ────────────────────────────────────────────
-    const idErr = validateEmployeeId(f.id);
+    // Employee No. must be exactly 7 numeric digits
+    const idErr = !/^\d{7}$/.test(f.id.trim())
+      ? 'Invalid Employee No. — must be exactly 7 numbers.'
+      : null;
     if (idErr) { setError(idErr); return; }
 
     const emailErr = validateDepedEmail(f.email.toLowerCase().trim());
@@ -283,15 +293,15 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         value={f[key] || ''}
         onChange={e => {
           let v = e.target.value;
-          if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 8);
+          if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 7);
           if (key === 'email') v = v.toLowerCase();
           set(key, v);
         }}
         placeholder={
-          key === 'id'    ? 'e.g. 20240001' :
+          key === 'id'    ? 'e.g. 2024001' :
           key === 'email' ? 'juan@deped.gov.ph' : ''
         }
-        maxLength={key === 'id' ? 8 : undefined}
+        maxLength={key === 'id' ? 7 : undefined}
       />
       {key === 'email' && f.email && !f.email.endsWith('@deped.gov.ph') && (
         <span style={{ fontSize: 10, color: '#e53e3e' }}>⚠️ Must end with @deped.gov.ph</span>
@@ -311,7 +321,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           {/* Account Credentials */}
           <div className="sdiv">Account Credentials</div>
           <div className="ig" style={{ marginBottom: 18 }}>
-            {fi('Employee NO (7 digits)', 'id', 'text', undefined, isNew ? '*' : undefined)}
+            {fi('Employee No. (7 digits)', 'id', 'text', undefined, isNew ? '*' : undefined)}
             {fi('Email Address (@deped.gov.ph)', 'email', 'email', undefined, '*')}
             <div className="f">
               <label>
