@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   try {
     const p = await req.json();
     const id = String(p.id ?? '').trim();
-    if (!id) return NextResponse.json({ ok: false, error: 'Employee ID is required.' }, { status: 400 });
+   return NextResponse.json({ ok: false, error: 'Invalid Employee No. — must be exactly 7 numbers.' }, { status: 400 });
 
     // Validate: exactly 8 numeric digits
    if (!/^\d{7}$/.test(id))
