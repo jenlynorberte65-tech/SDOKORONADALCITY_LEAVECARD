@@ -124,8 +124,8 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       account_status: f.account_status,
       pos:            f.pos.trim(),
       school:         f.school.trim(),
-      records:        employee?.records      ?? [],
-      conversionLog:  employee?.conversionLog ?? [],
+      records:        [],   // ← never re-send records on personal info edit
+conversionLog:  employee?.conversionLog ?? [],
     };
 
     setSaving(true);
