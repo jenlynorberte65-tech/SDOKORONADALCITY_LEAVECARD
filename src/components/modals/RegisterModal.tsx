@@ -90,14 +90,17 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     if (!isNew && f.id !== employee?.id && state.db.find(e => e.id === f.id)) {
       setError(`Employee ID "${f.id}" is already in use by another employee.`); return;
     }
+    // FIX: use the ORIGINAL employee id for exclusion, not the new one
+    const originalId = employee?.id ?? f.id;
     const dupEmail = state.db.find(
-      e => e.email?.toLowerCase() === f.email.toLowerCase().trim() && e.id !== f.id
+      e => e.email?.toLowerCase() === f.email.toLowerCase().trim() && e.id !== originalId
     );
     if (dupEmail) { setError(`Email "${f.email}" is already registered to another employee.`); return; }
 
     // ── Build payload ─────────────────────────────────────────
     const payload = {
       id:             f.id.trim(),
+      originalId:     isNew ? null : employee?.id,  // FIX: send original ID so server identifies the correct record
       email:          f.email.toLowerCase().trim(),
       password:       f.password,
       surname:        f.surname.trim(),
@@ -208,7 +211,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       <input
         type={type}
         value={f[key] || ''}
-
         onChange={e => {
           let v = e.target.value;
           if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 8);
@@ -220,7 +222,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           key === 'email' ? 'juan@deped.gov.ph' : ''
         }
         maxLength={key === 'id' ? 8 : undefined}
-
       />
       {key === 'email' && f.email && !f.email.endsWith('@deped.gov.ph') && (
         <span style={{ fontSize: 10, color: '#e53e3e' }}>⚠️ Must end with @deped.gov.ph</span>
