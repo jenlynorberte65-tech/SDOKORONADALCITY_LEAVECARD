@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { Topbar, Sidebar } from '@/components/Navigation';
+import HomepagePage from '@/components/pages/HomepagePage';
 import PersonnelListPage from '@/components/pages/PersonnelListPage';
 import LeaveCardsPage from '@/components/pages/LeaveCardsPage';
 import SchoolAdminPage from '@/components/pages/SchoolAdminPage';
@@ -38,7 +39,6 @@ export default function AppScreen() {
     const emp = state.db.find(e => e.id === id) as Personnel | undefined;
     const page = emp?.status === 'Teaching' ? 't' : 'nt';
 
-    // Save to sessionStorage for refresh restore
     try {
       const raw = sessionStorage.getItem('deped_session');
       if (raw) {
@@ -49,14 +49,13 @@ export default function AppScreen() {
 
     dispatch({ type: 'SET_CUR_ID', payload: id });
 
-    // If records not loaded yet, fetch them before showing the card
     if (!emp?.records || emp.records.length === 0) {
       try {
         const res = await apiCall('get_records', { employee_id: id }, 'GET');
         if (res.ok && res.records) {
           dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id, records: res.records } });
         }
-      } catch { /* navigate anyway, card will be empty */ }
+      } catch { /* navigate anyway */ }
     }
 
     dispatch({ type: 'SET_PAGE', payload: page });
@@ -84,9 +83,14 @@ export default function AppScreen() {
 
       {/* Page content */}
       <div className="ca">
-        {/* Admin/Encoder pages */}
+
+        {/* ── Admin / Encoder pages ───────────────────────────── */}
         {(state.isAdmin || state.isEncoder) && (
           <>
+            {/* Homepage — admin & encoder see leave stats */}
+            <div className={`page${state.page === 'home' ? ' on' : ''}`}>
+              <HomepagePage showLeaveStats={true} />
+            </div>
             <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
               <PersonnelListPage onOpenCard={handleOpenCard} />
             </div>
@@ -102,14 +106,20 @@ export default function AppScreen() {
           </>
         )}
 
-        {/* School Admin page */}
+        {/* ── School Admin pages ──────────────────────────────── */}
         {state.isSchoolAdmin && (
-          <div className={`page${state.page === 'sa' ? ' on' : ''}`}>
-            <SchoolAdminPage />
-          </div>
+          <>
+            {/* Homepage — school admin does NOT see leave stats */}
+            <div className={`page${state.page === 'home' ? ' on' : ''}`}>
+              <HomepagePage showLeaveStats={false} />
+            </div>
+            <div className={`page${state.page === 'sa'   ? ' on' : ''}`}>
+              <SchoolAdminPage />
+            </div>
+          </>
         )}
 
-        {/* Employee read-only view */}
+        {/* ── Employee read-only view ─────────────────────────── */}
         {isEmployee && (
           <div className={`page${state.page === 'user' ? ' on' : ''}`}>
             <UserPage onLogout={handleLogout} />
