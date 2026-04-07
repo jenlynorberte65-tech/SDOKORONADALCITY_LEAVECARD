@@ -84,10 +84,10 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
 
     // Client-side duplicate checks
     if (isNew && state.db.find(e => e.id === f.id)) {
-      setError(`Employee ID "${f.id}" is already in use.`); return;
+      setError(`Employee No. "${f.id}" is already in use.`); return;
     }
     if (!isNew && f.id !== employee?.id && state.db.find(e => e.id === f.id)) {
-      setError(`Employee ID "${f.id}" is already in use by another employee.`); return;
+      setError(`Employee No. "${f.id}" is already in use by another employee.`); return;
     }
     const originalId = employee?.id ?? f.id;
     const dupEmail = state.db.find(
