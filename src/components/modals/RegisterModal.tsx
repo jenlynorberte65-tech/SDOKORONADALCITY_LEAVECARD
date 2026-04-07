@@ -204,7 +204,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       <input
         type={type}
         value={f[key] || ''}
-        disabled={key === 'id' && !isNew}   /* lock ID when editing */
         onChange={e => {
           let v = e.target.value;
           if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 8);
