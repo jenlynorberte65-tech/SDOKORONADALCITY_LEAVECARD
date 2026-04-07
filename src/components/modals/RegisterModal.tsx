@@ -86,21 +86,23 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     if (isNew && state.db.find(e => e.id === f.id)) {
       setError(`Employee ID "${f.id}" is already in use.`); return;
     }
-    // When editing, allow same ID but block if changed to one that belongs to someone else
     if (!isNew && f.id !== employee?.id && state.db.find(e => e.id === f.id)) {
       setError(`Employee ID "${f.id}" is already in use by another employee.`); return;
     }
-    // FIX: use the ORIGINAL employee id for exclusion, not the new one
     const originalId = employee?.id ?? f.id;
     const dupEmail = state.db.find(
       e => e.email?.toLowerCase() === f.email.toLowerCase().trim() && e.id !== originalId
     );
     if (dupEmail) { setError(`Email "${f.email}" is already registered to another employee.`); return; }
 
+    // ── Detect status (category) change ───────────────────────
+    // We check BEFORE saving so we have both old and new status available.
+    const statusChanged = !isNew && employee && employee.status !== f.status;
+
     // ── Build payload ─────────────────────────────────────────
     const payload = {
       id:             f.id.trim(),
-      originalId:     isNew ? null : employee?.id,  // FIX: send original ID so server identifies the correct record
+      originalId:     isNew ? null : employee?.id,
       email:          f.email.toLowerCase().trim(),
       password:       f.password,
       surname:        f.surname.trim(),
@@ -124,22 +126,21 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
       account_status: f.account_status,
       pos:            f.pos.trim(),
       school:         f.school.trim(),
-      records:        [],   // ← never re-send records on personal info edit
-conversionLog:  employee?.conversionLog ?? [],
+      records:        [],   // never re-send records on personal info edit
+      conversionLog:  employee?.conversionLog ?? [],
     };
 
     setSaving(true);
     setError('');
 
     try {
-      // ── Direct fetch — avoids any apiCall wrapper issues ────
+      // ── Save personal info ────────────────────────────────────
       const res = await fetch('/api/save_employee', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      // Handle non-OK HTTP status codes
       if (!res.ok) {
         let errMsg = `Server error: ${res.status} ${res.statusText}`;
         try {
@@ -158,7 +159,54 @@ conversionLog:  employee?.conversionLog ?? [],
         return;
       }
 
-      // ── Success — build updated Personnel object ───────────
+      // ── Insert conversion record if category changed ──────────
+      // This creates a new era in the leave card with a "Balance Forwarded" row.
+      // The last balance of the old era carries forward to the new era.
+      if (statusChanged && employee) {
+        // Find the last non-conversion record to get the final balance
+        const lastRec = [...(employee.records ?? [])]
+          .reverse()
+          .find(r => !r._conversion);
+
+        const fwdBV = lastRec?.setA_balance ?? 0;
+        const fwdBS = lastRec?.setB_balance ?? 0;
+
+        const conversionRecord = {
+          so:          '',
+          prd:         '',
+          from:        '',
+          to:          '',
+          spec:        '',
+          action:      '',
+          earned:      0,
+          forceAmount: 0,
+          monV:        0,
+          monS:        0,
+          monDV:       0,
+          monDS:       0,
+          monAmount:   0,
+          monDisAmt:   0,
+          trV:         0,
+          trS:         0,
+          _conversion: true,
+          fromStatus:  employee.status,          // old category (e.g. "Teaching")
+          toStatus:    f.status,                 // new category (e.g. "Non-Teaching")
+          date:        new Date().toISOString().slice(0, 10),
+          fwdBV,                                 // last Set A balance before conversion
+          fwdBS,                                 // last Set B balance before conversion
+        };
+
+        await fetch('/api/save_record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_id: f.id.trim(),
+            record:      conversionRecord,
+          }),
+        });
+      }
+
+      // ── Build updated Personnel object for local state ────────
       const saved: Personnel = {
         ...(employee ?? ({} as Personnel)),
         id:             f.id.trim(),
@@ -193,7 +241,6 @@ conversionLog:  employee?.conversionLog ?? [],
       onSaved(saved, isNew);
 
     } catch (err: unknown) {
-      // "Failed to fetch" lands here — give a clear, actionable message
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
         setError('Network error: Could not reach the server. Please check your connection and try again.');
@@ -306,6 +353,20 @@ conversionLog:  employee?.conversionLog ?? [],
 
           {/* Employment Details */}
           <div className="sdiv">Employment Details</div>
+
+          {/* ── Conversion warning ── */}
+          {!isNew && employee && f.status !== employee.status && (
+            <div style={{ margin: '0 0 14px', padding: '10px 14px', background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: 8 }}>
+              <p style={{ color: '#92400e', fontSize: 12, fontWeight: 600, margin: 0 }}>
+                ⚠️ Category change detected: <b>{employee.status}</b> → <b>{f.status}</b>
+                <br />
+                <span style={{ fontWeight: 400 }}>
+                  A new leave card era will be created. The current balance will be carried forward as the opening balance of the new era.
+                </span>
+              </p>
+            </div>
+          )}
+
           <div className="ig">
             <div className="f">
               <label>Category <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
