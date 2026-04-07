@@ -118,9 +118,36 @@ export function LeaveTableHeader({ showAction }: { showAction: boolean }) {
 }
 
 // ── Balance Forwarded row ─────────────────────────────────────
+// FIX: Teaching conversion has ONE balance (either SetA or SetB depending on context).
+//      Non-Teaching conversion always has TWO balances (bV = SetA, bS = SetB).
+//      The toStatus tells us which era is STARTING (the new era after conversion).
+//      - If toStatus === 'Teaching'     → coming FROM Non-Teaching → show both bV and bS
+//        (Teaching era receives both values but renders as single-balance card)
+//      - If toStatus === 'Non-Teaching' → coming FROM Teaching     → show bV as BOTH
+//        (Non-Teaching era receives the single Teaching balance as its starting bV AND bS)
+//
+// IMPORTANT: FwdRow only renders the *display* row. The actual seed values
+// (bV, bS) are passed in from EraSection which reads conv.fwdBV / conv.fwdBS.
+// For the display we show what's stored: bV in SetA balance, bS in SetB balance.
+// When fromStatus === 'Teaching' (converting TO Non-Teaching), bV === bS (same single value).
 export function FwdRow({ conv, bV, bS, status }: { conv: LeaveRecord; bV: number; bS: number; status: string }) {
-  const convDate = fmtD(conv.date || '');
-  const remarks  = `Converted: ${conv.fromStatus} → ${conv.toStatus}${conv.lastAction ? ` / ${conv.lastAction}` : ''}`;
+  const convDate  = fmtD(conv.date || '');
+  const remarks   = `Converted: ${conv.fromStatus} → ${conv.toStatus}${conv.lastAction ? ` / ${conv.lastAction}` : ''}`;
+
+  // Determine which balances to show based on the ERA TYPE of the forwarded row.
+  // `status` is the status of the era that OWNS this FwdRow (i.e. the new era).
+  const isTeachingEra = status === 'Teaching';
+
+  // For a Teaching era: show only ONE balance.
+  //   - Use bV (fwdBV) which holds the last balance from the previous Non-Teaching era.
+  //   - Show in SetA column; SetB column is blank.
+  // For a Non-Teaching era: show TWO balances.
+  //   - bV → SetA balance (vacation/force)
+  //   - bS → SetB balance (sick)
+  //   - When converting from Teaching, bV === bS (the single teaching balance copied to both).
+  const showSetA = isTeachingEra ? bV : bV;
+  const showSetB = isTeachingEra ? null : bS;   // null = render empty cell
+
   return (
     <tr className="era-fwd-row">
       <td>—</td>
@@ -128,8 +155,18 @@ export function FwdRow({ conv, bV, bS, status }: { conv: LeaveRecord; bV: number
         <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Balance Forwarded</span>
         <br /><span style={{ fontSize: 9, color: 'var(--au)', fontWeight: 600 }}>({convDate})</span>
       </td>
-      <td className="nc"/><td className="nc"/><td className="bc" style={{ color: 'var(--au)', fontWeight: 700 }}>{fmtNum(bV)}</td><td className="nc"/>
-      <td className="nc"/><td className="nc"/><td className="bc" style={{ color: 'var(--au)', fontWeight: 700 }}>{fmtNum(bS)}</td><td className="nc"/>
+      {/* SetA columns */}
+      <td className="nc"/>
+      <td className="nc"/>
+      <td className="bc" style={{ color: 'var(--au)', fontWeight: 700 }}>{fmtNum(showSetA)}</td>
+      <td className="nc"/>
+      {/* SetB columns */}
+      <td className="nc"/>
+      <td className="nc"/>
+      <td className="bc" style={{ color: 'var(--au)', fontWeight: 700 }}>
+        {showSetB !== null ? fmtNum(showSetB) : ''}
+      </td>
+      <td className="nc"/>
       <td style={{ fontStyle: 'italic', fontSize: 10, color: 'var(--au)', textAlign: 'left', paddingLeft: 5 }}>{remarks}</td>
     </tr>
   );
