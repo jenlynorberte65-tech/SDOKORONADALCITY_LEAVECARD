@@ -166,6 +166,7 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
     datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
   });
 }
+
 export function isEmptyRecord(r: LeaveRecord): boolean {
   if (r._conversion) return false;
   return !r.action && !r.so && !r.prd && !r.from && !r.to && !r.spec
@@ -174,100 +175,193 @@ export function isEmptyRecord(r: LeaveRecord): boolean {
 }
 
 // ── Compute row balance updates ──────────────────────────────
+//
+// FIX: Era isolation — each era's balance computation is fully
+// self-contained. Conversion records act as hard boundaries.
+//
+// When a conversion record is encountered, we do NOT carry over
+// the running balance into the NEXT era's computation here.
+// Instead, the conversion record itself stores the forwarded
+// balances (fwdBV / fwdBS) which are used by EraSection to seed
+// the display. The DB row for the conversion stores them in
+// setA_balance / setB_balance via recordToRow.
+//
+// Conversion seeding rules (mirrors EraSection logic exactly):
+//
+//   Teaching → Non-Teaching:
+//     The single Teaching balance (bal) becomes BOTH bV and bS
+//     in the new Non-Teaching era. Store bal in BOTH fwdBV and fwdBS
+//     so the conversion row's setA_balance = setB_balance = bal.
+//
+//   Non-Teaching → Teaching:
+//     Teaching uses a SINGLE balance. Seed from bV (vacation balance).
+//     Store bV in fwdBV (setA_balance). fwdBS (setB_balance) = 0.
+//
+// IMPORTANT: Changing records in one era will NEVER affect another
+// era's display because each era seeds only from its conversion record's
+// stored fwdBV/fwdBS — not from the live running balance of the prior era.
+// The only time a prior era affects a later one is when you explicitly
+// re-save the conversion record (i.e. when you actually perform a conversion).
 export function computeRowBalanceUpdates(
   records: LeaveRecord[],
   empId: string,
   empStatus: 'Teaching' | 'Non-Teaching'
 ): RowBalanceUpdate[] {
+  // ── Step 1: Split records into segments by conversion boundaries ──
+  // Each segment is: { eraStatus, convRecord | null, dataRecords[] }
+  // This ensures each era is computed independently.
+  interface EraSegment {
+    eraStatus: 'Teaching' | 'Non-Teaching';
+    conv: LeaveRecord | null;   // the conversion record that STARTS this era (null for Era 1)
+    recs: LeaveRecord[];        // data records in this era (no conversion records)
+  }
+
+  const segments: EraSegment[] = [];
+  let currentStatus: 'Teaching' | 'Non-Teaching' = empStatus;
+
+  // Find the first conversion to determine the actual starting status of Era 1
   const firstConv = records.find(r => r._conversion);
-  let curEra: string = firstConv ? firstConv.fromStatus! : empStatus;
-  let bV = 0, bS = 0, bal = 0;
-  const updates: RowBalanceUpdate[] = [];
+  if (firstConv) {
+    // Era 1's status is the fromStatus of the first conversion
+    currentStatus = (firstConv.fromStatus ?? empStatus) as 'Teaching' | 'Non-Teaching';
+  }
+
+  let currentSeg: EraSegment = { eraStatus: currentStatus, conv: null, recs: [] };
 
   for (const r of records) {
     if (!r) continue;
-   // REPLACE:
-if (r._conversion) {
-  if (curEra === 'Teaching' && r.toStatus === 'Non-Teaching') {
-    bV = 0; bS = 0;
-  } else if (curEra === 'Non-Teaching' && r.toStatus === 'Teaching') {
-    bal = 0;
-  }
-  curEra = r.toStatus!;
-  continue;
-}
-    const C = classifyLeave(r.action || '');
-    // isForceDis and isMD/isMon/isAcc/isTransfer handle their own days, exclude from calcDays
-    const days = (!C.isAcc && !C.isTransfer && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD && r.earned === 0)
-                 ? calcDays(r) : 0;
-
-    let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
-    let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
-
-    if (curEra === 'Teaching') {
-      if (C.isTransfer)                        { rowAEarned = r.trV || 0; bal += rowAEarned; }
-      else if (r.earned > 0 && !C.isMon && !C.isPer) { rowAEarned = r.earned; bal += rowAEarned; }
-      else if (C.isMD)                         { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
-      else if (C.isForceDis)                   { const d = calcDays(r); rowAAbsWP = d; bal += d; }
-      else if (C.isMon)                        { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
-      else if (days > 0) {
-        if (C.isSick)               { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
-        else if (C.isPer)           { rowAWOP = days; }
-        else if (C.isVacation)      { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
-        else if (C.isForce)         { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
-        else if (C.isTerminal)      { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
-        else if (C.isSetB_noDeduct) { rowBAbsWP = days; }
-        else                        { rowAAbsWP = days; }
-      }
-      const isE = r.earned > 0;
-      const showBalInSetB = (C.isSick || C.isSetB_noDeduct || C.isTerminal) && !isE && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD;
-      if (!r._record_id) continue;
-      updates.push({
-        record_id:    r._record_id,
-        employee_id:  empId,
-        setA_earned:  +rowAEarned.toFixed(3),
-        setA_abs_wp:  +rowAAbsWP.toFixed(3),
-        setA_balance: showBalInSetB ? 0 : +bal.toFixed(3),
-        setA_wop:     +rowAWOP.toFixed(3),
-        setB_earned:  0,
-        setB_abs_wp:  +rowBAbsWP.toFixed(3),
-        setB_balance: showBalInSetB ? +bal.toFixed(3) : 0,
-        setB_wop:     +rowBWOP.toFixed(3),
-      });
+    if (r._conversion) {
+      // Push the completed segment
+      segments.push(currentSeg);
+      // Start a new segment for the era AFTER this conversion
+      const newStatus = (r.toStatus ?? empStatus) as 'Teaching' | 'Non-Teaching';
+      currentSeg = { eraStatus: newStatus, conv: r, recs: [] };
     } else {
-      // Non-Teaching
-      if (C.isTransfer)      { rowAEarned = r.trV || 0; rowBEarned = r.trS || 0; bV += rowAEarned; bS += rowBEarned; }
-      else if (C.isAcc)      { const v = (r.earned === 0 && !(r.action || '').toLowerCase().includes('service')) ? 1.25 : r.earned; rowAEarned = v; rowBEarned = v; bV += v; bS += v; }
-      else if (r.earned > 0) { rowAEarned = r.earned; rowBEarned = r.earned; bV += r.earned; bS += r.earned; }
-      else if (C.isMD)       { bV += r.monDV || 0; bS += r.monDS || 0; rowAAbsWP = r.monDV || 0; rowBAbsWP = r.monDS || 0; }
-      // isForceDis: add days back to Set A W/Pay and Set A balance only (bS unchanged)
-      else if (C.isForceDis) { const d = calcDays(r); rowAAbsWP = d; bV += d; }
-      else if (C.isMon)      { const mV = r.monV || 0, mS = r.monS || 0; if (bV >= mV) { rowAAbsWP = mV; bV -= mV; } else { rowAAbsWP = bV; rowAWOP = mV - bV; bV = 0; } if (bS >= mS) { rowBAbsWP = mS; bS -= mS; } else { rowBAbsWP = bS; rowBWOP = mS - bS; bS = 0; } }
-      else if (C.isPer && days > 0)           { rowAWOP = days; }
-      else if (C.isVacation && days > 0)      { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
-      else if (C.isSick && days > 0)          { if (bS >= days) { rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
-      else if (C.isForce && days > 0)         { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } }
-       else if (C.isTerminal && days > 0) { if (bV >= days) { rowAAbsWP = days; bV -= days; } else { rowAAbsWP = bV; rowAWOP = days - bV; bV = 0; } if (bS >= days) { 
-         rowBAbsWP = days; bS -= days; } else { rowBAbsWP = bS; rowBWOP = days - bS; bS = 0; } }
-      else if (C.isSetB_noDeduct && days > 0) { rowBAbsWP = days; }
-      else if (C.isSetA_noDeduct && days > 0) { rowAAbsWP = days; }
-      else if (days > 0)                      { rowAAbsWP = days; }
-
-      if (!r._record_id) continue;
-      updates.push({
-        record_id:    r._record_id,
-        employee_id:  empId,
-        setA_earned:  +rowAEarned.toFixed(3),
-        setA_abs_wp:  +rowAAbsWP.toFixed(3),
-        setA_balance: +bV.toFixed(3),
-        setA_wop:     +rowAWOP.toFixed(3),
-        setB_earned:  +rowBEarned.toFixed(3),
-        setB_abs_wp:  +rowBAbsWP.toFixed(3),
-        setB_balance: +bS.toFixed(3),
-        setB_wop:     +rowBWOP.toFixed(3),
-      });
+      currentSeg.recs.push(r);
     }
   }
+  // Push the last (current active) segment
+  segments.push(currentSeg);
+
+  // ── Step 2: Compute each segment independently ──
+  const updates: RowBalanceUpdate[] = [];
+
+  for (const seg of segments) {
+    if (seg.eraStatus === 'Teaching') {
+      // ── Teaching era ──
+      // Seed from the conversion record's stored forwarded balance.
+      // conv.fwdBV holds the balance forwarded into this Teaching era.
+      // For Era 1 (no conv): start from 0.
+      let bal = seg.conv ? (seg.conv.fwdBV ?? 0) : 0;
+
+      // Also update the conversion record row itself in the DB
+      // to reflect the correct forwarded balance snapshot.
+      // (No update needed for the conv row's balance here — that is
+      //  handled by the save_conversion API route when the conversion
+      //  is first created or re-saved. We only recompute data rows.)
+
+      for (const r of seg.recs) {
+        if (!r._record_id) continue;
+
+        const C = classifyLeave(r.action || '');
+        let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
+        let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
+
+        if (C.isTransfer)                        { rowAEarned = r.trV || 0; bal += rowAEarned; }
+        else if (r.earned > 0 && !C.isMon && !C.isPer) { rowAEarned = r.earned; bal += rowAEarned; }
+        else if (C.isMD)                         { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
+        else if (C.isForceDis)                   { const d = calcDays(r); rowAAbsWP = d; bal += d; }
+        else if (C.isMon)                        { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
+        else if (!C.isDis) {
+          const days = calcDays(r);
+          if (days > 0) {
+            if (C.isSick)               { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
+            else if (C.isPer)           { rowAWOP = days; }
+            else if (C.isVacation)      { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
+            else if (C.isForce)         { if (bal >= days) { rowAAbsWP = days; bal -= days; } else { rowAAbsWP = bal; rowAWOP = days - bal; bal = 0; } }
+            else if (C.isTerminal)      { if (bal >= days) { rowBAbsWP = days; bal -= days; } else { rowBAbsWP = bal; rowBWOP = days - bal; bal = 0; } }
+            else if (C.isSetB_noDeduct) { rowBAbsWP = days; }
+            else                        { rowAAbsWP = days; }
+          }
+        }
+
+        const isE = r.earned > 0;
+        const showBalInSetB = (C.isSick || C.isSetB_noDeduct || C.isTerminal) && !isE && !C.isDis && !C.isForceDis && !C.isMon && !C.isMD;
+
+        updates.push({
+          record_id:    r._record_id,
+          employee_id:  empId,
+          setA_earned:  +rowAEarned.toFixed(3),
+          setA_abs_wp:  +rowAAbsWP.toFixed(3),
+          setA_balance: showBalInSetB ? 0 : +bal.toFixed(3),
+          setA_wop:     +rowAWOP.toFixed(3),
+          setB_earned:  0,
+          setB_abs_wp:  +rowBAbsWP.toFixed(3),
+          setB_balance: showBalInSetB ? +bal.toFixed(3) : 0,
+          setB_wop:     +rowBWOP.toFixed(3),
+        });
+      }
+
+    } else {
+      // ── Non-Teaching era ──
+      // Seed from the conversion record's stored forwarded balances.
+      //
+      // If converting FROM Teaching: fwdBV holds the single Teaching balance.
+      //   Use it for BOTH bV and bS (Teaching → NT: single balance seeds both accumulators).
+      // If converting FROM Non-Teaching (or Era 1): use fwdBV and fwdBS directly.
+      // Era 1 (no conv): start both from 0.
+      let bV = 0;
+      let bS = 0;
+      if (seg.conv) {
+        const fromTeaching = seg.conv.fromStatus === 'Teaching';
+        if (fromTeaching) {
+          bV = seg.conv.fwdBV ?? 0;
+          bS = seg.conv.fwdBV ?? 0;   // intentionally fwdBV for both
+        } else {
+          bV = seg.conv.fwdBV ?? 0;
+          bS = seg.conv.fwdBS ?? 0;
+        }
+      }
+
+      for (const r of seg.recs) {
+        if (!r._record_id) continue;
+
+        const C = classifyLeave(r.action || '');
+        let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
+        let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
+
+        if (C.isTransfer)      { rowAEarned = r.trV || 0; rowBEarned = r.trS || 0; bV += rowAEarned; bS += rowBEarned; }
+        else if (C.isAcc)      { const v = (r.earned === 0 && !(r.action || '').toLowerCase().includes('service')) ? 1.25 : r.earned; rowAEarned = v; rowBEarned = v; bV += v; bS += v; }
+        else if (r.earned > 0) { rowAEarned = r.earned; rowBEarned = r.earned; bV += r.earned; bS += r.earned; }
+        else if (C.isMD)       { bV += r.monDV || 0; bS += r.monDS || 0; rowAAbsWP = r.monDV || 0; rowBAbsWP = r.monDS || 0; }
+        else if (C.isForceDis) { const d = calcDays(r); rowAAbsWP = d; bV += d; }
+        else if (C.isMon)      { const mV = r.monV || 0, mS = r.monS || 0; if (bV >= mV) { rowAAbsWP = mV; bV -= mV; } else { rowAAbsWP = bV; rowAWOP = mV - bV; bV = 0; } if (bS >= mS) { rowBAbsWP = mS; bS -= mS; } else { rowBAbsWP = bS; rowBWOP = mS - bS; bS = 0; } }
+        else if (C.isDis)      { /* no change */ }
+        else if (C.isPer)           { const d = calcDays(r); if (d > 0) rowAWOP = d; }
+        else if (C.isVacation)      { const d = calcDays(r); if (d > 0) { if (bV >= d) { rowAAbsWP = d; bV -= d; } else { rowAAbsWP = bV; rowAWOP = d - bV; bV = 0; } } }
+        else if (C.isSick)          { const d = calcDays(r); if (d > 0) { if (bS >= d) { rowBAbsWP = d; bS -= d; } else { rowBAbsWP = bS; rowBWOP = d - bS; bS = 0; } } }
+        else if (C.isForce)         { const d = calcDays(r); if (d > 0) { if (bV >= d) { rowAAbsWP = d; bV -= d; } else { rowAAbsWP = bV; rowAWOP = d - bV; bV = 0; } } }
+        else if (C.isTerminal)      { const d = calcDays(r); if (d > 0) { if (bV >= d) { rowAAbsWP = d; bV -= d; } else { rowAAbsWP = bV; rowAWOP = d - bV; bV = 0; } if (bS >= d) { rowBAbsWP = d; bS -= d; } else { rowBAbsWP = bS; rowBWOP = d - bS; bS = 0; } } }
+        else if (C.isSetB_noDeduct) { const d = calcDays(r); if (d > 0) rowBAbsWP = d; }
+        else if (C.isSetA_noDeduct) { const d = calcDays(r); if (d > 0) rowAAbsWP = d; }
+        else                        { const d = calcDays(r); if (d > 0) { rowAAbsWP = d; } }
+
+        updates.push({
+          record_id:    r._record_id,
+          employee_id:  empId,
+          setA_earned:  +rowAEarned.toFixed(3),
+          setA_abs_wp:  +rowAAbsWP.toFixed(3),
+          setA_balance: +bV.toFixed(3),
+          setA_wop:     +rowAWOP.toFixed(3),
+          setB_earned:  +rowBEarned.toFixed(3),
+          setB_abs_wp:  +rowBAbsWP.toFixed(3),
+          setB_balance: +bS.toFixed(3),
+          setB_wop:     +rowBWOP.toFixed(3),
+        });
+      }
+    }
+  }
+
   return updates;
 }
 
@@ -334,7 +428,7 @@ export function getNTAccrualMonthLabel(): string {
 
 // ── Employee ID validation ───────────────────────────────────
 export function validateEmployeeId(id: string): string | null {
- if (!/^\d{7}$/.test(id)) return 'Invalid Employee No. — must be exactly 7 numbers.';
+  if (!/^\d{7}$/.test(id)) return 'Invalid Employee No. — must be exactly 7 numbers.';
   return null;
 }
 
