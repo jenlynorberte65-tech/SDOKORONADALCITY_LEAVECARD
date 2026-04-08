@@ -1,24 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { personnelRowToJs, rowToRecord } from '@/lib/recordToRow';
 import type { RowDataPacket } from 'mysql2';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const archived = req.nextUrl.searchParams.get('archived') === '1';
-    const status   = archived ? 'inactive' : 'active';
-
-    // Fetch all personnel
+    // ── Fetch ALL personnel regardless of account_status ──────────────────
+    // Inactive employees must still appear in the list (just marked inactive).
+    // The UI is responsible for visually distinguishing inactive employees
+    // and for blocking their login — not this query.
     const [personnelRows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM personnel WHERE account_status=? ORDER BY surname,given', [status]
+      'SELECT * FROM personnel ORDER BY surname, given'
     );
 
-    // Fetch ALL leave records for all employees in one query
+    // ── Fetch ALL leave records in one query ──────────────────────────────
     const [recordRows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM leave_records ORDER BY employee_id, sort_order ASC, record_id ASC'
     );
 
-    // Group records by employee_id
+    // ── Group records by employee_id ──────────────────────────────────────
     const recordsByEmp: Record<string, ReturnType<typeof rowToRecord>[]> = {};
     for (const row of recordRows as RowDataPacket[]) {
       const empId = String(row.employee_id);
@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
       recordsByEmp[empId].push(rowToRecord(row as Record<string, unknown>));
     }
 
-    // Attach records to each personnel
+    // ── Attach records to each personnel ─────────────────────────────────
     const data = personnelRows.map(r => {
-      const emp = personnelRowToJs(r as Record<string, unknown>);
+      const emp   = personnelRowToJs(r as Record<string, unknown>);
       const empId = String(emp.id);
       emp.records = recordsByEmp[empId] || [];
       return emp;
