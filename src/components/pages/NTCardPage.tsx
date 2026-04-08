@@ -331,7 +331,7 @@ export default function NTCardPage({ onBack }: Props) {
               empStatus="Non-Teaching"
               empRecords={emp.records || []}
               editIdx={editIdx}
-              editRecord={editRecord}
+               editRecord={editRecord}
               onSaved={handleSaved}
               onCancelEdit={handleCancelEdit}
             />
