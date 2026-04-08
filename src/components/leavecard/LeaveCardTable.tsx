@@ -145,9 +145,8 @@ export function FwdRow({ conv, bV, bS, status }: { conv: LeaveRecord; bV: number
   //   - bV → SetA balance (vacation/force)
   //   - bS → SetB balance (sick)
   //   - When converting from Teaching, bV === bS (the single teaching balance copied to both).
-  const showSetA = isTeachingEra ? bV : bV;
-  const showSetB = isTeachingEra ? null : bS;   // null = render empty cell
-
+const showSetA = bV;
+const showSetB = bS;
   return (
     <tr className="era-fwd-row">
       <td>—</td>
@@ -164,8 +163,8 @@ export function FwdRow({ conv, bV, bS, status }: { conv: LeaveRecord; bV: number
       <td className="nc"/>
       <td className="nc"/>
       <td className="bc" style={{ color: 'var(--au)', fontWeight: 700 }}>
-        {showSetB !== null ? fmtNum(showSetB) : ''}
-      </td>
+  {fmtNum(showSetB)}
+</td>
       <td className="nc"/>
       <td style={{ fontStyle: 'italic', fontSize: 10, color: 'var(--au)', textAlign: 'left', paddingLeft: 5 }}>{remarks}</td>
     </tr>
