@@ -87,7 +87,7 @@ export interface Personnel {
   pexam: string;
   dexam: string;
   appt: string;
-  status: 'Teaching' | 'Non-Teaching';
+  status: 'Teaching' | 'Non-Teaching'| 'Teaching Related';
   account_status: 'active' | 'inactive';
   pos: string;
   school: string;
