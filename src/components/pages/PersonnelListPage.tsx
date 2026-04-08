@@ -4,20 +4,21 @@ import { useAppStore } from '@/hooks/useAppStore';
 import { StatBox, isCardUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
 import RegisterModal from '@/components/modals/RegisterModal';
 import CardStatusModal from '@/components/modals/CardStatusModal';
+import { apiCall } from '@/lib/api';
 import type { Personnel } from '@/types';
 
 interface Props { onOpenCard: (id: string) => void; }
 
 export default function PersonnelListPage({ onOpenCard }: Props) {
   const { state, dispatch } = useAppStore();
-  const [search, setSearch]     = useState('');
-  const [fCat, setFCat]         = useState('');
-  const [fPos, setFPos]         = useState('');
-  const [fSch, setFSch]         = useState('');
-  const [fCard, setFCard]       = useState('');
-  const [fAcct, setFAcct]       = useState('');
-  const [regOpen, setRegOpen]   = useState(false);
-  const [editEmp, setEditEmp]   = useState<Personnel | null>(null);
+  const [search, setSearch]   = useState('');
+  const [fCat, setFCat]       = useState('');
+  const [fPos, setFPos]       = useState('');
+  const [fSch, setFSch]       = useState('');
+  const [fCard, setFCard]     = useState('');
+  const [fAcct, setFAcct]     = useState('');
+  const [regOpen, setRegOpen] = useState(false);
+  const [editEmp, setEditEmp] = useState<Personnel | null>(null);
   const [cardStatusOpen, setCardStatusOpen] = useState(false);
 
   // All employees — inactive are still shown in the list
@@ -29,9 +30,7 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const positions = useMemo(() => [...new Set(all.map(e => (e.pos    || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
   const schools   = useMemo(() => [...new Set(all.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
 
-  const monthLabel = currentMonthLabel();
-
-  // Dashboard counts — based on leave card data, active employees only
+  const monthLabel       = currentMonthLabel();
   const teachingCount    = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
   const nonTeachingCount = activeOnly.filter(e => (e.status ?? '').toLowerCase() !== 'teaching').length;
   const updatedCount     = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '')).length;
@@ -47,9 +46,8 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
       if (fCat && e.status !== fCat) return false;
       if (fPos && (e.pos    || '').trim().toUpperCase() !== fPos) return false;
       if (fSch && (e.school || '').trim().toUpperCase() !== fSch) return false;
-      // Card status filter only applies to active employees
       if (fCard) {
-        if (e.account_status === 'inactive') return false; // inactive don't have a card status
+        if (e.account_status === 'inactive') return false;
         const upd = isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
         if (fCard === 'updated' && !upd) return false;
         if (fCard === 'pending' &&  upd) return false;
@@ -58,11 +56,24 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
     }).sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
   }, [all, search, fCat, fPos, fSch, fCard, fAcct]);
 
-  function handleSaved(emp: Personnel, isNew: boolean) {
-    if (isNew) {
-      dispatch({ type: 'ADD_EMPLOYEE', payload: emp });
+  // ── After any save (new or edit), re-fetch the full DB from the server.
+  //    This ensures account_status changes (and all other edits) are
+  //    immediately reflected in state and survive a page refresh,
+  //    because the source of truth is always the DB — not the modal form data.
+  async function handleSaved(_emp: Personnel, isNew: boolean) {
+    const res = await apiCall('get_personnel', {}, 'GET');
+    if (res.ok && res.data) {
+      dispatch({ type: 'SET_DB', payload: res.data });
     } else {
-      dispatch({ type: 'UPDATE_EMPLOYEE', payload: { employee: emp, originalId: editEmp?.id ?? emp.id } });
+      // Fallback to optimistic update if re-fetch fails
+      if (isNew) {
+        dispatch({ type: 'ADD_EMPLOYEE', payload: _emp });
+      } else {
+        dispatch({
+          type: 'UPDATE_EMPLOYEE',
+          payload: { employee: _emp, originalId: editEmp?.id ?? _emp.id },
+        });
+      }
     }
     setRegOpen(false);
     setEditEmp(null);
@@ -171,11 +182,7 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
               ) : filtered.map(e => {
                 const isT      = (e.status ?? '').toLowerCase() === 'teaching';
                 const inactive = e.account_status === 'inactive';
-
-                // Card status is only meaningful for active employees
-                const upd = inactive
-                  ? false
-                  : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+                const upd      = inactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
 
                 return (
                   <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
@@ -214,7 +221,6 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
                     <td style={{ textAlign: 'center' }}>{(e.school || '').toUpperCase()}</td>
                     <td style={{ textAlign: 'center' }}>
                       {inactive ? (
-                        // Inactive employees have no card status — show a neutral dash
                         <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700, background: '#f3f4f6', color: '#6b7280' }}>
                           — N/A
                         </span>
