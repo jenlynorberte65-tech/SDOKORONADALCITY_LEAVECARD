@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { LeaveTableHeader, FwdRow, computeNTRow, computeTRow } from '@/components/leavecard/LeaveCardTable';
+import { LeaveTableHeader, FwdRow } from '@/components/leavecard/LeaveCardTable';
 import { fmtD, fmtNum, hz, isEmptyRecord, apiCall } from '@/lib/api';
 import type { LeaveRecord, Personnel } from '@/types';
 
@@ -22,11 +22,10 @@ interface Props {
 }
 
 export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardType }: Props) {
-  const [open, setOpen]           = useState(false);
-  const [deleting, setDeleting]   = useState(false);
+  const [open, setOpen]         = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const realRecs = seg.recs.filter(r => !r._conversion && !isEmptyRecord(r));
-  const label    = `📁 ${seg.status} Leave Record — Era ${si + 1} (${seg.recs.length} entr${seg.recs.length === 1 ? 'y' : 'ies'})`;
+  const label = `📁 ${seg.status} Leave Record — Era ${si + 1} (${seg.recs.length} entr${seg.recs.length === 1 ? 'y' : 'ies'})`;
 
   // ── Delete entire era ─────────────────────────────────────────
   async function handleDeleteEra() {
@@ -93,10 +92,31 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
             <table>
               <LeaveTableHeader showAction={isAdmin} />
               <tbody>
-               {cardType === 'nt' ? (
+                {/* ── FIX Bug 1 ──────────────────────────────────────────────────
+                    Era 1 (si === 0) NEVER has a Balance Forwarded row.
+                    Only eras after the first (si > 0) show the forwarded balance
+                    that came from the previous era's conversion marker.
+
+                    The `conv` stored on the segment is the conversion marker that
+                    CLOSES this era (i.e. the conversion that spawns the NEXT era).
+                    The balance forwarded INTO this era comes from the PREVIOUS era's
+                    `conv` — which is passed down from the parent (TCardTable /
+                    NTCardTable) as `seg.conv` only for si > 0. For si === 0 the
+                    parent already passes conv = null, but we guard here too.
+                    ───────────────────────────────────────────────────────────── */}
+                {si > 0 && seg.conv && (() => {
+                  // The FwdRow for this era shows the balance forwarded FROM the
+                  // previous era into this one.  The last real record of the
+                  // PREVIOUS era's stored balance fields are used — those are
+                  // captured in conv.fwdBV / conv.fwdBS by the conversion logic.
+                  const bV = seg.conv.fwdBV ?? 0;
+                  const bS = seg.conv.fwdBS ?? 0;
+                  return <FwdRow conv={seg.conv} bV={bV} bS={bS} status={seg.status} />;
+                })()}
+
+                {cardType === 'nt' ? (
                   <NTEraRows
-                      records={seg.recs}
-                      conv={seg.conv} 
+                    records={seg.recs}
                     isAdmin={isAdmin}
                     emp={emp}
                     startIdx={seg.startIdx}
@@ -105,9 +125,8 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
                     eraStatus={seg.status}
                   />
                 ) : (
-                 <TEraRows
+                  <TEraRows
                     records={seg.recs}
-                      conv={seg.conv} 
                     isAdmin={isAdmin}
                     emp={emp}
                     startIdx={seg.startIdx}
@@ -125,20 +144,21 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-//  NT Era Rows
+// ─────────────────────────────────────────────────────────────────────────────
+//  NT Era Rows — Non-Teaching  (also used for "Related Teaching" which shares
+//  the same computation as Non-Teaching per the requirements)
 //
-//  FIX (Problems 1, 2, 3):
-//  - fwdBV / fwdBS are used ONLY for the Balance Forwarded display row.
-//  - bV / bS always start from ZERO — Balance Forwarded is display only.
-//  - Previous era's last row is never affected because calculation
-//    never reads from fwdBV/fwdBS into the running balance.
-// ─────────────────────────────────────────────────────────────
+//  FIX Bug 2 & 4:
+//  Locked eras read the DB-stored balance fields (setA_balance, setB_balance,
+//  setA_earned, setB_earned, etc.) that were written at the time of entry.
+//  We NEVER recompute with live logic here — that would cause Era 1 values to
+//  change after a conversion, and the last row of a locked era to silently
+//  inherit the new era's category logic.
+// ─────────────────────────────────────────────────────────────────────────────
 function NTEraRows({
-  records, conv, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
+  records, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
 }: {
   records: LeaveRecord[];
-  conv: LeaveRecord | null;
   isAdmin: boolean;
   emp: Personnel;
   startIdx: number;
@@ -146,36 +166,22 @@ function NTEraRows({
   onEditRow: (idx: number, record: LeaveRecord) => void;
   eraStatus: string;
 }) {
-  // ── Display values for Balance Forwarded row ONLY ──
-  // These are never used in any calculation.
-  let fwdBV = 0;
-  let fwdBS = 0;
-  if (conv) {
-    const fromTeaching = conv.fromStatus === 'Teaching';
-    if (fromTeaching) {
-      fwdBV = conv.fwdBV ?? 0;
-      fwdBS = conv.fwdBV ?? 0;  // single teaching balance seeds both display columns
-    } else {
-      fwdBV = conv.fwdBV ?? 0;
-      fwdBS = conv.fwdBS ?? 0;
-    }
-  }
-
-  // ── Calculation ALWAYS starts from ZERO ──
-  // Balance Forwarded row is display only — excluded from calculation.
-  let bV = 0;
-  let bS = 0;
-
   return (
     <>
-      {conv && (
-        <FwdRow conv={conv} bV={fwdBV} bS={fwdBS} status={eraStatus} />
-      )}
       {records.map((r, ri) => {
         if (r._conversion) return null;
-        const res = computeNTRow(r, bV, bS);
-        bV = res.bV; bS = res.bS;
-        const { eV, eS, aV, aS, wV, wS } = res;
+
+        // ── FIX Bug 2 & 4: read DB-stored computed values, never recompute ──
+        // These fields were saved by computeRowBalanceUpdates() at the time the
+        // record belonged to its era.  They are permanently locked.
+        const eV = r.setA_earned  ?? 0;
+        const aV = r.setA_abs_wp  ?? 0;
+        const bV = r.setA_balance ?? 0;
+        const wV = r.setA_wop     ?? 0;
+        const eS = r.setB_earned  ?? 0;
+        const aS = r.setB_abs_wp  ?? 0;
+        const bS = r.setB_balance ?? 0;
+        const wS = r.setB_wop     ?? 0;
 
         const { classifyLeave } = require('@/lib/api');
         const C       = classifyLeave(r.action || '');
@@ -215,20 +221,15 @@ function NTEraRows({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 //  Teaching Era Rows
 //
-//  FIX (Problems 1, 2, 3):
-//  - fwdBal is used ONLY for the Balance Forwarded display row.
-//  - bal always starts from ZERO — Balance Forwarded is display only.
-//  - Previous era's last row is never affected because calculation
-//    never reads from fwdBal into the running balance.
-// ─────────────────────────────────────────────────────────────
+//  FIX Bug 2 & 4: Same pattern — read DB-stored fields, never recompute.
+// ─────────────────────────────────────────────────────────────────────────────
 function TEraRows({
-  records, conv, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
+  records, isAdmin, emp, startIdx, onRefresh, onEditRow, eraStatus,
 }: {
   records: LeaveRecord[];
-  conv: LeaveRecord | null;
   isAdmin: boolean;
   emp: Personnel;
   startIdx: number;
@@ -236,25 +237,22 @@ function TEraRows({
   onEditRow: (idx: number, record: LeaveRecord) => void;
   eraStatus: string;
 }) {
-  // ── Display value for Balance Forwarded row ONLY ──
-  // Never used in any calculation.
-  const fwdBal = conv ? (conv.fwdBV ?? 0) : 0;
-
-  // ── Calculation ALWAYS starts from ZERO ──
-  // Balance Forwarded row is display only — excluded from calculation.
-  let bal = 0;
-
   return (
     <>
-      {conv && (
-        <FwdRow conv={conv} bV={fwdBal} bS={fwdBal} status={eraStatus} />
-      )}
       {records.map((r, ri) => {
         if (r._conversion) return null;
 
-        const res = computeTRow(r, bal);
-        bal = res.bal;
-        const { aV, aS, wV, wS, isSetBLeave } = res;
+        // ── FIX Bug 2 & 4: read DB-stored computed values, never recompute ──
+        const earned     = r.setA_earned  ?? 0;
+        const aV         = r.setA_abs_wp  ?? 0;
+        const balA       = r.setA_balance ?? 0;
+        const wV         = r.setA_wop     ?? 0;
+        const aS         = r.setB_abs_wp  ?? 0;
+        const balB       = r.setB_balance ?? 0;
+        const wS         = r.setB_wop     ?? 0;
+
+        // Teaching uses a single balance pool; setB is only shown when setA = 0
+        const isSetBLeave = balA === 0 && balB > 0;
 
         const { classifyLeave } = require('@/lib/api');
         const C       = classifyLeave(r.action || '');
@@ -271,14 +269,14 @@ function TEraRows({
               {r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}
             </td>
             <td className="nc">
-              {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(r.earned) : ''}
+              {C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(earned) : ''}
             </td>
             <td className="nc">{hz(aV)}</td>
-            <td className="bc">{isSetBLeave ? '' : fmtNum(bal)}</td>
+            <td className="bc">{isSetBLeave ? '' : fmtNum(balA)}</td>
             <td className="nc">{hz(wV)}</td>
             <td className="nc">{''}</td>
             <td className="nc">{hz(aS)}</td>
-            <td className="bc">{isSetBLeave ? fmtNum(bal) : ''}</td>
+            <td className="bc">{isSetBLeave ? fmtNum(balB) : ''}</td>
             <td className="nc">{hz(wS)}</td>
             <td className={`${ac} remarks-cell`} style={{ textAlign: 'left', paddingLeft: 4 }}>
               {r.action}
@@ -299,9 +297,9 @@ function TEraRows({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 //  Per-row action menu (Edit / Delete)
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 function EraRowMenu({
   record, idx, emp, onRefresh, onEditRow,
 }: {
