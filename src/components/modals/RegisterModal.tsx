@@ -42,6 +42,7 @@ const SCHOOL_OPTIONS: string[] = [
   'Topland Elementary School',
 ];
 
+
 export default function RegisterModal({ employee, onClose, onSaved }: Props) {
   const { state } = useAppStore();
   const [f, setF]           = useState<F>(EMPTY);
@@ -257,7 +258,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         pexam:          f.pexam.trim(),
         dexam:          f.dexam.trim(),
         appt:           f.appt.trim(),
-        status:         f.status as 'Teaching' | 'Non-Teaching',
+        status:         f.status as 'Teaching' | 'Non-Teaching' | 'Teaching Related',
         account_status: f.account_status as 'active' | 'inactive',
         pos:            f.pos.trim(),
         school:         f.school.trim(),
@@ -405,12 +406,17 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           )}
 
           <div className="ig">
+            {/* ── Category — now includes Teaching Related ── */}
             <div className="f">
               <label>Category <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
               <input list="statList" value={f.status} onChange={e => set('status', e.target.value)}
                 placeholder="Select or type…"
                 style={{ height:'var(--H)',padding:'0 12px',border:'1.5px solid var(--br)',borderRadius:7,fontSize:12,width:'100%',background:'white',color:'var(--cha)',fontFamily:'Inter,sans-serif' }} />
-              <datalist id="statList"><option value="Teaching"/><option value="Non-Teaching"/></datalist>
+              <datalist id="statList">
+                <option value="Teaching"/>
+                <option value="Non-Teaching"/>
+                <option value="Teaching Related"/>
+              </datalist>
             </div>
             <div className="f">
               <label>Account Status</label>
@@ -420,6 +426,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
+
             {fi('Position / Designation', 'pos', 'text', undefined, '*')}
 
             {/* ── School / Office Assignment — dropdown + manual input ── */}
