@@ -473,7 +473,7 @@ function SingleTEra({ records, isAdmin, emp, startIdx, onRefresh, onEditRow }: {
             <td className="period-cell">{r.prd}{dd && <><br /><span className="prd-date">{dd}</span></>}</td>
             <td className="nc">{C.isTransfer ? fmtNum(r.trV || 0) : (!C.isMon && !C.isPer && isE) ? fmtNum(earned) : ''}</td>
             <td className="nc">{hz(aV)}</td>
-            <td className="bc">{isSetBLeave ? '' : (balA > 0 ? fmtNum(balA) : '')}</td>
+           <td className="bc">{isSetBLeave ? '' : (balA > 0 ? fmtNum(balA) : '')}</td>
             <td className="nc">{hz(wV)}</td>
             <td className="nc">{''}</td>
             <td className="nc">{hz(aS)}</td>
