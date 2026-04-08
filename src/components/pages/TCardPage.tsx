@@ -411,7 +411,7 @@ function TCardTable({ emp, isAdmin, onRefresh, onEditRow }: {
       emp={emp}
       isAdmin={isAdmin}
       onRefresh={onRefresh}
-      onEditRow={onEdit}
+     onEditRow={onEditRow}
       cardType="nt"
     />
   ))}
