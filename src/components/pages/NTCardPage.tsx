@@ -386,18 +386,24 @@ function NTCardTable({ emp, isAdmin, onRefresh, onEdit }: {
 
   return (
     <>
-  {segments.slice(0, -1).map((seg, si) => (
-  <EraSection
-    key={si}
-    seg={seg}
-    si={si}
-    emp={emp}
-    isAdmin={isAdmin}
-    onRefresh={onRefresh}
-    onEditRow={onEdit}   // ← add this line
-    cardType="nt"
-  />
-))}
+ {segments.slice(0, -1).map((seg, si) => (
+    <EraSection
+      key={si}
+      seg={{
+        ...seg,
+        // Replace seg.conv (which closes THIS era) with the conv that
+        // OPENED this era — i.e. the previous segment's closing conv.
+        // For si=0 this is null (Era 1 never has a forwarded balance).
+        conv: si === 0 ? null : (segments[si - 1].conv ?? null),
+      }}
+      si={si}
+      emp={emp}
+      isAdmin={isAdmin}
+      onRefresh={onRefresh}
+      onEditRow={onEdit}
+      cardType="nt"
+    />
+  ))}
       <div className="card era-new-section" style={{ padding: 0 }} id="ntTblCard">
         <div className="tw">
           <table>
