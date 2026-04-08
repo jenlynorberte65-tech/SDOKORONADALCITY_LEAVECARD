@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
-import { StatBox, isUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
+import { StatBox, isCardUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
 import RegisterModal from '@/components/modals/RegisterModal';
 import CardStatusModal from '@/components/modals/CardStatusModal';
 import type { Personnel } from '@/types';
@@ -20,65 +20,98 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const [editEmp, setEditEmp]   = useState<Personnel | null>(null);
   const [cardStatusOpen, setCardStatusOpen] = useState(false);
 
-  const active = useMemo(() => state.db.filter(e => !e.archived), [state.db]);
+  // All employees — inactive are still shown in the list
+  const all = useMemo(() => state.db, [state.db]);
 
-  const positions = useMemo(() => [...new Set(active.map(e => (e.pos || '').trim().toUpperCase()).filter(Boolean))].sort(), [active]);
-  const schools   = useMemo(() => [...new Set(active.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [active]);
+  // Only ACTIVE employees are counted in the dashboard stats
+  const activeOnly = useMemo(() => all.filter(e => e.account_status !== 'inactive'), [all]);
 
-  const monthLabel      = currentMonthLabel();
-  const updatedCount    = active.filter(e => isUpdatedThisMonth(e.lastEditedAt)).length;
-  const notUpdatedCount = active.length - updatedCount;
+  const positions = useMemo(() => [...new Set(all.map(e => (e.pos    || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
+  const schools   = useMemo(() => [...new Set(all.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
+
+  const monthLabel = currentMonthLabel();
+
+  // Dashboard counts — based on leave card data, active employees only
+  const teachingCount    = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
+  const nonTeachingCount = activeOnly.filter(e => (e.status ?? '').toLowerCase() !== 'teaching').length;
+  const updatedCount     = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '')).length;
+  const notUpdatedCount  = activeOnly.length - updatedCount;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return active.filter(e => {
+    return all.filter(e => {
       if (fAcct === 'active'   && e.account_status === 'inactive') return false;
       if (fAcct === 'inactive' && e.account_status !== 'inactive') return false;
       const nm = `${e.surname || ''} ${e.given || ''} ${e.suffix || ''}`.toLowerCase();
       if (q && !`${e.id || ''} ${nm} ${e.pos || ''}`.toLowerCase().includes(q)) return false;
-      if (fCat  && e.status !== fCat) return false;
-      if (fPos  && (e.pos || '').trim().toUpperCase() !== fPos) return false;
-      if (fSch  && (e.school || '').trim().toUpperCase() !== fSch) return false;
-      const upd = isUpdatedThisMonth(e.lastEditedAt);
-      if (fCard === 'updated' && !upd) return false;
-      if (fCard === 'pending' &&  upd) return false;
+      if (fCat && e.status !== fCat) return false;
+      if (fPos && (e.pos    || '').trim().toUpperCase() !== fPos) return false;
+      if (fSch && (e.school || '').trim().toUpperCase() !== fSch) return false;
+      // Card status filter only applies to active employees
+      if (fCard) {
+        if (e.account_status === 'inactive') return false; // inactive don't have a card status
+        const upd = isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+        if (fCard === 'updated' && !upd) return false;
+        if (fCard === 'pending' &&  upd) return false;
+      }
       return true;
     }).sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
-  }, [active, search, fCat, fPos, fSch, fCard, fAcct]);
+  }, [all, search, fCat, fPos, fSch, fCard, fAcct]);
 
   function handleSaved(emp: Personnel, isNew: boolean) {
     if (isNew) {
       dispatch({ type: 'ADD_EMPLOYEE', payload: emp });
     } else {
-      // FIX: pass originalId so UPDATE_EMPLOYEE finds the record even if ID changed
       dispatch({ type: 'UPDATE_EMPLOYEE', payload: { employee: emp, originalId: editEmp?.id ?? emp.id } });
     }
-    setRegOpen(false); setEditEmp(null);
+    setRegOpen(false);
+    setEditEmp(null);
   }
 
   return (
     <>
-      {/* Stats */}
+      {/* ── Dashboard Stats ── */}
       <div className="stats-row no-print">
-        <StatBox icon="👥" iconClass="si-g" value={active.length} label="Active Personnel" />
-        <StatBox icon="📚" iconClass="si-b" value={active.filter(e => e.status === 'Teaching').length} label="Teaching" />
-        <StatBox icon="🏢" iconClass="si-a" value={active.filter(e => e.status === 'Non-Teaching').length} label="Non-Teaching" />
-        <StatBox icon="✅" iconStyle={{ background: '#d1fae5' }} value={updatedCount}
-          label={`Updated (${monthLabel})`} valueStyle={{ color: '#065f46' }}
-          style={{ borderColor: 'var(--g3)', cursor: 'pointer' }} onClick={() => setCardStatusOpen(true)} />
-        <StatBox icon="⏳" iconStyle={{ background: '#fee2e2' }} value={notUpdatedCount}
-          label="Not Yet Updated" valueStyle={{ color: '#c53030' }}
-          style={{ borderColor: '#e53e3e', cursor: 'pointer' }} onClick={() => setCardStatusOpen(true)} />
+        <StatBox icon="👥" iconClass="si-g"
+          value={activeOnly.length}
+          label="Active Personnel" />
+        <StatBox icon="📚" iconClass="si-b"
+          value={teachingCount}
+          label="Teaching" />
+        <StatBox icon="🏢" iconClass="si-a"
+          value={nonTeachingCount}
+          label="Non-Teaching" />
+        <StatBox icon="✅"
+          iconStyle={{ background: '#d1fae5' }}
+          value={updatedCount}
+          label={`Updated (${monthLabel})`}
+          valueStyle={{ color: '#065f46' }}
+          style={{ borderColor: 'var(--g3)', cursor: 'pointer' }}
+          onClick={() => setCardStatusOpen(true)} />
+        <StatBox icon="⏳"
+          iconStyle={{ background: '#fee2e2' }}
+          value={notUpdatedCount}
+          label="Not Yet Updated"
+          valueStyle={{ color: '#c53030' }}
+          style={{ borderColor: '#e53e3e', cursor: 'pointer' }}
+          onClick={() => setCardStatusOpen(true)} />
       </div>
 
       <div className="card">
         <div className="ch grn">👥 Personnel Registry</div>
         <div className="toolbar no-print">
           <div className="toolbar-left">
-            <button className="btn b-grn" onClick={() => { setEditEmp(null); setRegOpen(true); }}>➕ Register New Personnel</button>
+            <button className="btn b-grn" onClick={() => { setEditEmp(null); setRegOpen(true); }}>
+              ➕ Register New Personnel
+            </button>
             <div className="srch">
               <span className="sri">🔍</span>
-              <input type="text" placeholder="Search name or ID…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input
+                type="text"
+                placeholder="Search name or ID…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
           </div>
           <div className="toolbar-filters" id="toolbarFilters">
@@ -86,6 +119,7 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
               <option value="">All Categories</option>
               <option value="Teaching">Teaching</option>
               <option value="Non-Teaching">Non-Teaching</option>
+              <option value="Teaching Related">Teaching Related</option>
             </select>
             <select className="tb-filter" value={fPos} onChange={e => setFPos(e.target.value)}>
               <option value="">All Positions</option>
@@ -105,9 +139,14 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
               <option value="active">🟢 Active</option>
               <option value="inactive">🔴 Inactive</option>
             </select>
-            <button className="tb-filter-clear no-print" onClick={() => { setSearch(''); setFCat(''); setFPos(''); setFSch(''); setFCard(''); setFAcct(''); }}>✕ Clear</button>
+            <button
+              className="tb-filter-clear no-print"
+              onClick={() => { setSearch(''); setFCat(''); setFPos(''); setFSch(''); setFCard(''); setFAcct(''); }}>
+              ✕ Clear
+            </button>
           </div>
         </div>
+
         <div className="tw" style={{ maxHeight: 'none' }}>
           <table style={{ borderCollapse: 'collapse' }}>
             <thead>
@@ -124,22 +163,38 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--mu)', fontStyle: 'italic' }}>No personnel found.</td></tr>
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--mu)', fontStyle: 'italic' }}>
+                    No personnel found.
+                  </td>
+                </tr>
               ) : filtered.map(e => {
-                const isT      = e.status === 'Teaching';
-                const upd      = isUpdatedThisMonth(e.lastEditedAt);
+                const isT      = (e.status ?? '').toLowerCase() === 'teaching';
                 const inactive = e.account_status === 'inactive';
+
+                // Card status is only meaningful for active employees
+                const upd = inactive
+                  ? false
+                  : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+
                 return (
                   <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
-                    <td style={{ textAlign: 'center' }}><b style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{e.id}</b></td>
+                    <td style={{ textAlign: 'center' }}>
+                      <b style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{e.id}</b>
+                    </td>
                     <td style={{ textAlign: 'left', fontWeight: 600, paddingLeft: 10 }}>
                       <button
                         className="btn"
-                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, color: 'var(--cha)', textAlign: 'left', height: 'auto', textTransform: 'none', letterSpacing: 0 }}
+                        style={{
+                          background: 'none', border: 'none', padding: 0,
+                          cursor: 'pointer', fontWeight: 600, color: 'var(--cha)',
+                          textAlign: 'left', height: 'auto',
+                          textTransform: 'none', letterSpacing: 0,
+                        }}
                         onClick={() => {
-                          const page = e.status === 'Teaching' ? 't' : 'nt';
+                          const page = isT ? 't' : 'nt';
                           dispatch({ type: 'SET_CUR_ID', payload: e.id });
-                          dispatch({ type: 'SET_PAGE', payload: page });
+                          dispatch({ type: 'SET_PAGE',   payload: page });
                           try {
                             const raw = sessionStorage.getItem('deped_session');
                             if (raw) {
@@ -152,22 +207,43 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
                         {(e.surname || '').toUpperCase()}, {e.given || ''} {e.suffix || ''}
                       </button>
                     </td>
-                    <td style={{ textAlign: 'center' }}><span className={`badge ${isT ? 'bt' : 'bnt'}`}>{e.status}</span></td>
-                    <td style={{ textAlign: 'center' }}>{(e.pos || '').toUpperCase()}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${isT ? 'bt' : 'bnt'}`}>{e.status}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{(e.pos    || '').toUpperCase()}</td>
                     <td style={{ textAlign: 'center' }}>{(e.school || '').toUpperCase()}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700, background: upd ? '#d1fae5' : '#fee2e2', color: upd ? '#065f46' : '#9b1c1c' }}>
-                        {upd ? '✅ Updated' : '⏳ Pending'}
-                      </span>
+                      {inactive ? (
+                        // Inactive employees have no card status — show a neutral dash
+                        <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700, background: '#f3f4f6', color: '#6b7280' }}>
+                          — N/A
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                          background: upd ? '#d1fae5' : '#fee2e2',
+                          color:      upd ? '#065f46' : '#9b1c1c',
+                        }}>
+                          {upd ? '✅ Updated' : '⏳ Pending'}
+                        </span>
+                      )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700, background: inactive ? '#fee2e2' : '#d1fae5', color: inactive ? '#9b1c1c' : '#065f46' }}>
+                      <span style={{
+                        fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                        background: inactive ? '#fee2e2' : '#d1fae5',
+                        color:      inactive ? '#9b1c1c' : '#065f46',
+                      }}>
                         {inactive ? '🔴 Inactive' : '🟢 Active'}
                       </span>
                     </td>
                     <td className="no-print" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <button className="btn b-amb" style={{ height: 34, padding: '0 18px', fontSize: 12 }}
-                        onClick={() => { setEditEmp(e); setRegOpen(true); }}>✏ Edit</button>
+                      <button
+                        className="btn b-amb"
+                        style={{ height: 34, padding: '0 18px', fontSize: 12 }}
+                        onClick={() => { setEditEmp(e); setRegOpen(true); }}>
+                        ✏ Edit
+                      </button>
                     </td>
                   </tr>
                 );
