@@ -93,10 +93,10 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
             <table>
               <LeaveTableHeader showAction={isAdmin} />
               <tbody>
-                {cardType === 'nt' ? (
+               {cardType === 'nt' ? (
                   <NTEraRows
-                    records={seg.recs}
-                    conv={seg.conv}
+                      records={seg.recs}
+                      conv={seg.conv} 
                     isAdmin={isAdmin}
                     emp={emp}
                     startIdx={seg.startIdx}
@@ -105,9 +105,9 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
                     eraStatus={seg.status}
                   />
                 ) : (
-                  <TEraRows
+                 <TEraRows
                     records={seg.recs}
-                    conv={seg.conv}
+                      conv={seg.conv} 
                     isAdmin={isAdmin}
                     emp={emp}
                     startIdx={seg.startIdx}
