@@ -69,8 +69,6 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
         <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 400, color: 'var(--mu)' }}>
           Click to expand / collapse
         </span>
-        {isAdmin && (
-        )}
       </div>
 
       {/* ── Era body ── */}
