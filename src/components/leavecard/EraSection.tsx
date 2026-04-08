@@ -70,23 +70,6 @@ export function EraSection({ seg, si, emp, isAdmin, onRefresh, onEditRow, cardTy
           Click to expand / collapse
         </span>
         {isAdmin && (
-          <button
-  className="btn no-print"
-  style={{
-    marginLeft: 8, height: 26, padding: '0 10px', fontSize: 11,
-    background: seg.recs.length > 0 ? '#f3f4f6' : '#fee2e2',
-    color: seg.recs.length > 0 ? '#9ca3af' : '#9b1c1c',
-    border: `1px solid ${seg.recs.length > 0 ? '#d1d5db' : '#fca5a5'}`,
-    borderRadius: 6,
-    cursor: seg.recs.length > 0 ? 'not-allowed' : 'pointer',
-    flexShrink: 0,
-  }}
-  disabled={deleting || seg.recs.length > 0}
-  title={seg.recs.length > 0 ? 'Cannot delete era with existing records' : 'Delete this era'}
-  onClick={e => { e.stopPropagation(); handleDeleteEra(); }}
->
-  {deleting ? '⏳' : '🗑️ Delete Era'}
-</button>
         )}
       </div>
 
