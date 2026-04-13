@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import LoginScreen from '@/components/LoginScreen';
 import AppScreen from '@/components/AppScreen';
@@ -26,18 +26,19 @@ import type { Personnel } from '@/types';
 export let justLoggedIn = false;
 export function setJustLoggedIn() { justLoggedIn = true; }
 
-// ── Shared paginated loader — fetches all personnel in 100-record chunks ─────
-// This prevents the browser OOM crash caused by loading everything at once.
+// ── Shared paginated loader — fetches all personnel in chunks ────────────────
+// Prevents the browser OOM crash caused by loading everything at once.
 export async function fetchAllPersonnel(): Promise<Personnel[]> {
   const all: Personnel[] = [];
   let page = 1;
-  const limit = 100;
+  const limit = 20;
 
   while (true) {
-    const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET');
-    if (!res.ok || !res.data) break;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET') as any;
+    if (!res.ok || !res.data || res.data.length === 0) break;
     all.push(...(res.data as Personnel[]));
-    if (all.length >= (res.total ?? all.length)) break; // no more pages
+    if (all.length >= (res.total ?? all.length)) break;
     page++;
   }
 
@@ -47,17 +48,24 @@ export async function fetchAllPersonnel(): Promise<Personnel[]> {
 export default function App() {
   const { state, dispatch } = useAppStore();
 
+  // Prevents flash of login screen while session is being restored on refresh
+  const [restoring, setRestoring] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!sessionStorage.getItem('deped_session');
+  });
+
   useEffect(() => {
     async function restoreSession() {
       try {
         // ── Skip if LoginScreen just handled login this session ───────────
         if (justLoggedIn) {
-          justLoggedIn = false; // consume the flag
+          justLoggedIn = false;
+          setRestoring(false);
           return;
         }
 
         const raw = sessionStorage.getItem('deped_session');
-        if (!raw) return;
+        if (!raw) { setRestoring(false); return; }
         const s = JSON.parse(raw);
 
         if (s.isSchoolAdmin && s.schoolAdminCfg) {
@@ -93,7 +101,6 @@ export default function App() {
               });
           });
           await loadDB();
-          // Restore page — if on nt/t card, also reload records
           const page = s.page || 'home';
           if ((page === 'nt' || page === 't') && s.curId) {
             dispatch({ type: 'SET_CUR_ID', payload: s.curId });
@@ -112,17 +119,31 @@ export default function App() {
           await loadDB();
         }
       } catch { /* ignore */ }
+      finally { setRestoring(false); }
     }
     restoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Paginated DB loader — replaces the old single-request loadDB ──────────
+  // ── Paginated DB loader — replaces old single-request loadDB ─────────────
   async function loadDB() {
     dispatch({ type: 'SET_LOADING', payload: true });
     const personnel = await fetchAllPersonnel();
     if (personnel.length) dispatch({ type: 'SET_DB', payload: personnel });
     dispatch({ type: 'SET_LOADING', payload: false });
+  }
+
+  // While restoring session on refresh, show a blank loading screen
+  if (restoring) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#f4f6f8',
+        fontFamily: 'Inter, sans-serif', color: '#555', fontSize: 15,
+      }}>
+        ⏳ Restoring session…
+      </div>
+    );
   }
 
   const loggedIn = state.isAdmin || state.isSchoolAdmin || state.role === 'employee';
