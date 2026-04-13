@@ -179,7 +179,7 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
             <p style={{ color:'#9d174d', fontSize:13, lineHeight:1.9, margin: 0 }}>
               This system was built to help the HR department of SDO Koronadal City lessen
               the hassle of manually finding and writing leave cards — a process that often
-              leads to human error. We just wanted to make their work a little easier. 💗
+              leads to human error. We just wanted to make their work a little easier.
             </p>
           </div>
 
@@ -207,7 +207,7 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
               badgeBg="#fce7f3"
               badgeColor="#9d174d"
               badge="Backend"
-              hearts="🌺 🩷 🌺"
+              hearts="🩷 🌺 🩷"
             />
           </div>
 
@@ -216,7 +216,7 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
             <div style={{ color:'#be185d', fontSize:11, letterSpacing:1.5, textTransform:'uppercase', fontWeight:700 }}>
               BS Information Technology · STI College of Koronadal
             </div>
-            <div style={{ color:'#f9a8d4', fontSize:10, marginTop:6, letterSpacing:1 }}>
+            <div style={{ color:'#be185d', fontSize:10, marginTop:6, letterSpacing:1 }}>
               © {new Date().getFullYear()} SDO Koronadal City Leave Management System
             </div>
           </div>
