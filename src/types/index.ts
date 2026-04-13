@@ -148,6 +148,10 @@ export interface ApiResponse<T = Record<string, unknown>> {
   sa_id?: number;
   admin?: { login_id: string; name: string };
   encoder?: { login_id: string; name: string };
+  // ── Pagination fields (returned by get_personnel) ──────────
+  total?: number;
+  page?: number;
+  limit?: number;
 }
 // Added 'home' — landing page after login for admin/encoder/school_admin
 export type Page = 'home' | 'list' | 'cards' | 'nt' | 't' | 'user' | 'sa';
