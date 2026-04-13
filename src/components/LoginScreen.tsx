@@ -13,6 +13,23 @@ export default function LoginScreen() {
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
+  // ── Fetches all personnel in paginated chunks to avoid OOM crashes ──────
+  async function fetchAllPersonnel(): Promise<Personnel[]> {
+    const all: Personnel[] = [];
+    let page = 1;
+    const limit = 100;
+
+    while (true) {
+      const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET');
+      if (!res.ok || !res.data) break;
+      all.push(...(res.data as Personnel[]));
+      if (all.length >= res.total) break; // no more pages
+      page++;
+    }
+
+    return all;
+  }
+
   async function handleLogin() {
     setError('');
     if (!loginId || !password) { setError('Please enter your email and password.'); return; }
@@ -23,25 +40,27 @@ export default function LoginScreen() {
 
     if (res.role === 'admin' || res.role === 'encoder') {
       dispatch({ type: 'LOGIN_ADMIN', payload: { name: res.name!, loginId: res.login_id!, isEncoder: res.role === 'encoder' } });
-      const dbRes = await apiCall('get_personnel', {}, 'GET');
-      if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
+      const personnel = await fetchAllPersonnel();
+      if (personnel.length) dispatch({ type: 'SET_DB', payload: personnel });
       dispatch({ type: 'SET_PAGE', payload: 'home' });
       saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'home' });
 
     } else if (res.role === 'school_admin') {
       dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: res.name!, loginId: res.login_id!, dbId: res.db_id! } });
-      const dbRes = await apiCall('get_personnel', {}, 'GET');
-      if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
+      const personnel = await fetchAllPersonnel();
+      if (personnel.length) dispatch({ type: 'SET_DB', payload: personnel });
       dispatch({ type: 'SET_PAGE', payload: 'home' });
       saveSession({ isAdmin: false, isEncoder: false, isSchoolAdmin: true, curId: null, page: 'home', schoolAdminCfg: { id: res.login_id, dbId: res.db_id, name: res.name } });
 
     } else if (res.role === 'employee') {
       if (res.account_status === 'inactive') { setError('Your account is inactive. Please contact the administrator.'); return; }
       dispatch({ type: 'LOGIN_EMPLOYEE', payload: { curId: res.employee_id! } });
-      const dbRes = await apiCall('get_personnel', {}, 'GET');
-      if (dbRes.ok && dbRes.data) {
-        dispatch({ type: 'SET_DB', payload: dbRes.data });
-        const emp = (dbRes.data as Personnel[]).find(e => e.id === res.employee_id);
+
+      // ── Employees only need their own record — no need to load all personnel ──
+      const res2 = await apiCall(`get_personnel?page=1&limit=9999`, {}, 'GET');
+      if (res2.ok && res2.data) {
+        dispatch({ type: 'SET_DB', payload: res2.data as Personnel[] });
+        const emp = (res2.data as Personnel[]).find(e => e.id === res.employee_id);
         if (!emp || emp.account_status === 'inactive') { setError('Account not found or inactive.'); return; }
         const recRes = await apiCall('get_records', { employee_id: res.employee_id! }, 'GET');
         if (recRes.ok) dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: res.employee_id!, records: recRes.records || [] } });
