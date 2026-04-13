@@ -2,18 +2,26 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const role = searchParams.get('role') || 'admin';
+
     const [rows] = await pool.query<RowDataPacket[]>(
-      "SELECT * FROM admin_config WHERE role IN ('admin','encoder')"
+      'SELECT id, name, login_id, password, role FROM admin_config WHERE role=? ORDER BY id ASC',
+      [role]
     );
-    const admin   = rows.find(r => r.role === 'admin');
-    const encoder = rows.find(r => r.role === 'encoder');
-    return NextResponse.json({
-      ok: true,
-      admin:   admin   ? { login_id: admin.login_id,   name: admin.name }   : null,
-      encoder: encoder ? { login_id: encoder.login_id, name: encoder.name } : null,
-    });
+
+    return new NextResponse(
+      JSON.stringify({ ok: true, accounts: rows }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
