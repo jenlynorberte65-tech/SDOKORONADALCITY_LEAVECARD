@@ -10,17 +10,20 @@ import { apiCall } from '@/lib/api';
 //
 //  HOW SESSION RESTORE WORKS (and why it won't double-load):
 //
-//  LoginScreen sets two things in sessionStorage on successful login:
-//    1. 'deped_session'        — session data (role, page, etc.)
-//    2. 'deped_just_logged_in' — one-time flag: "LoginScreen already loaded
-//                                the DB, skip restoreSession this time"
+//  - On fresh login: LoginScreen handles everything (dispatch + loadDB).
+//    It sets a module-level flag `justLoggedIn` so restoreSession() skips.
+//    This flag lives in JS memory only — it dies on page refresh. ✅
 //
-//  restoreSession() checks for that flag first. If present, it removes it
-//  and returns immediately — no duplicate get_personnel call, no race.
+//  - On page refresh: flag is gone, restoreSession() reads sessionStorage
+//    and restores the session + reloads the DB normally. ✅
 //
-//  On a true page refresh (F5 / tab reopen), the flag is gone so
-//  restoreSession() runs normally and reloads the full DB once.
+//  - On logout: sessionStorage is cleared, restoreSession() finds nothing. ✅
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Module-level flag — survives re-renders but resets on page refresh.
+// Set by LoginScreen, consumed once by restoreSession().
+export let justLoggedIn = false;
+export function setJustLoggedIn() { justLoggedIn = true; }
 
 export default function App() {
   const { state, dispatch } = useAppStore();
@@ -28,11 +31,9 @@ export default function App() {
   useEffect(() => {
     async function restoreSession() {
       try {
-        // ── One-time flag set by LoginScreen after a fresh login ──────────
-        // Prevents a duplicate get_personnel call racing with LoginScreen.
-        const justLoggedIn = sessionStorage.getItem('deped_just_logged_in');
+        // ── Skip if LoginScreen just handled login this session ───────────
         if (justLoggedIn) {
-          sessionStorage.removeItem('deped_just_logged_in');
+          justLoggedIn = false; // consume the flag
           return;
         }
 
