@@ -2,12 +2,17 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // ── Force a unique build ID on every deploy ───────────────────────────
+  // This makes Vercel serve fresh JS/CSS chunks to ALL users automatically,
+  // even those with old bundles cached — no manual cache clearing needed.
+  generateBuildId: async () => {
+    return `build-${Date.now()}`;
+  },
+
   async headers() {
     return [
       {
-        // ── API routes — never cache ──────────────────────────────────────
-        // Prevents browsers from serving stale 304 responses for API calls,
-        // which was causing only 24 employees to show instead of all 110.
+        // ── API routes — never cache ────────────────────────────────────
         source: '/api/:path*',
         headers: [
           { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate' },
@@ -16,9 +21,7 @@ const nextConfig = {
         ],
       },
       {
-        // ── HTML pages — always revalidate ────────────────────────────────
-        // Ensures users always load the latest JS bundle after a deployment,
-        // preventing "Out of Memory" crashes from stale code being served.
+        // ── HTML pages — always revalidate ──────────────────────────────
         source: '/:path*',
         headers: [
           { key: 'Cache-Control', value: 'no-cache, must-revalidate' },
