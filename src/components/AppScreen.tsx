@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { Topbar, Sidebar } from '@/components/Navigation';
+import AdminProfileModal from '@/components/modals/AdminProfileModal';
 import HomepagePage from '@/components/pages/HomepagePage';
 import PersonnelListPage from '@/components/pages/PersonnelListPage';
 import LeaveCardsPage from '@/components/pages/LeaveCardsPage';
@@ -14,7 +15,8 @@ import type { Personnel } from '@/types';
 
 export default function AppScreen() {
   const { state, dispatch } = useAppStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [showAccounts,  setShowAccounts]  = useState(false);
 
   const isEmployee = state.role === 'employee';
 
@@ -34,7 +36,6 @@ export default function AppScreen() {
     sessionStorage.removeItem('deped_session');
   }
 
-  // Opens a leave card — pre-fetches records if not already loaded, then navigates instantly
   async function handleOpenCard(id: string) {
     const emp = state.db.find(e => e.id === id) as Personnel | undefined;
     const page = emp?.status === 'Teaching' ? 't' : 'nt';
@@ -61,22 +62,16 @@ export default function AppScreen() {
     dispatch({ type: 'SET_PAGE', payload: page });
   }
 
-  // ── Render only the ACTIVE page — prevents all pages mounting at once ──────
   function renderPage() {
     const p = state.page;
 
-    // Employee
-    if (isEmployee) {
-      return <UserPage onLogout={handleLogout} />;
-    }
+    if (isEmployee) return <UserPage onLogout={handleLogout} />;
 
-    // School Admin
     if (state.isSchoolAdmin) {
       if (p === 'sa') return <SchoolAdminPage />;
       return <HomepagePage showLeaveStats={false} />;
     }
 
-    // Admin / Encoder
     if (state.isAdmin || state.isEncoder) {
       if (p === 'list')  return <PersonnelListPage onOpenCard={handleOpenCard} />;
       if (p === 'cards') return <LeaveCardsPage onOpenCard={handleOpenCard} />;
@@ -90,7 +85,6 @@ export default function AppScreen() {
 
   return (
     <div id="s-app" className="screen active">
-      {/* Sidebar — hidden for employee */}
       {!isEmployee && (
         <Sidebar
           open={sidebarOpen}
@@ -100,20 +94,22 @@ export default function AppScreen() {
         />
       )}
 
-      {/* Topbar */}
       <Topbar
         onMenuClick={() => setSidebarOpen(true)}
         showMenu={!isEmployee}
         onLogout={handleLogout}
         showLogoutBtn={isEmployee}
+        showSettings={state.isAdmin}
+        onSettingsClick={() => setShowAccounts(true)}
       />
 
-      {/* Only the active page is mounted — no hidden pages consuming memory */}
       <div className="ca">
         {renderPage()}
       </div>
 
-      {/* Hidden print/PDF areas */}
+      {/* Account Management Modal — admin only, accessible from topbar */}
+      {showAccounts && <AdminProfileModal onClose={() => setShowAccounts(false)} />}
+
       <div id="printPageHeader" />
       <div id="pdfArea" />
     </div>
