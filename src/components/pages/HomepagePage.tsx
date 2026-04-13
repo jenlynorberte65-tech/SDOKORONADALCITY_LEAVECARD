@@ -14,13 +14,14 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
   const { state } = useAppStore();
   const aboutRef = useRef<HTMLDivElement>(null);
 
-  const active       = useMemo(() => state.db.filter(e => e.account_status !== 'inactive'), [state.db]);
-  const teaching     = useMemo(() => active.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length,     [active]);
-  const nonTeaching  = useMemo(() => active.filter(e => (e.status ?? '').toLowerCase() !== 'teaching').length, [active]);
+  const active          = useMemo(() => state.db.filter(e => e.account_status !== 'inactive'), [state.db]);
+  const teaching        = useMemo(() => active.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length, [active]);
+  const nonTeaching     = useMemo(() => active.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length, [active]);
+  const teachingRelated = useMemo(() => active.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length, [active]);
 
-  // ── KEY FIX: use isCardUpdatedThisMonth based on leave records, not lastEditedAt ──
+  // ── Use lastEditedAt as primary check — persists across refreshes ──────────
   const updatedCount = useMemo(() =>
-    active.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '')).length,
+    active.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length,
   [active]);
   const pendingCount = active.length - updatedCount;
   const monthLabel   = currentMonthLabel();
@@ -96,15 +97,16 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
       {/* ── Stats Cards ─────────────────────────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: showLeaveStats ? 'repeat(auto-fit, minmax(170px, 1fr))' : 'repeat(3, 1fr)',
+        gridTemplateColumns: showLeaveStats ? 'repeat(auto-fit, minmax(170px, 1fr))' : 'repeat(4, 1fr)',
         gap: 16, marginBottom: 28,
       }}>
-        <StatCard icon="👥" value={active.length} label="Total Encoded"    color="#14532d" bg="#f0fdf4" delay={0}   />
-        <StatCard icon="📚" value={teaching}       label="Teaching"         color="#166534" bg="#dcfce7" delay={80}  />
-        <StatCard icon="🏢" value={nonTeaching}    label="Non-Teaching"     color="#1a3a1e" bg="#bbf7d0" delay={160} />
+        <StatCard icon="👥" value={active.length}    label="Total Encoded"    color="#14532d" bg="#f0fdf4" delay={0}   />
+        <StatCard icon="📚" value={teaching}          label="Teaching"         color="#166534" bg="#dcfce7" delay={80}  />
+        <StatCard icon="🏢" value={nonTeaching}       label="Non-Teaching"     color="#1a3a1e" bg="#bbf7d0" delay={160} />
+        <StatCard icon="🎓" value={teachingRelated}   label="Teaching Related" color="#1e40af" bg="#dbeafe" delay={240} />
         {showLeaveStats && <>
-          <StatCard icon="✅" value={updatedCount} label={`Updated (${monthLabel})`} color="#14532d" bg="#d1fae5" delay={240} />
-          <StatCard icon="⏳" value={pendingCount} label="Not Yet Updated"              color="#7f1d1d" bg="#fee2e2" delay={320} />
+          <StatCard icon="✅" value={updatedCount} label={`Updated (${monthLabel})`} color="#14532d" bg="#d1fae5" delay={320} />
+          <StatCard icon="⏳" value={pendingCount} label="Not Yet Updated"           color="#7f1d1d" bg="#fee2e2" delay={400} />
         </>}
       </div>
 
