@@ -109,7 +109,6 @@ async function handlePrint() {
       print-color-adjust: exact;
     }
 
-    /* ── Print header ── */
     .print-header {
       display: flex;
       align-items: center;
@@ -121,99 +120,29 @@ async function handlePrint() {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .print-header img {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
+    .print-header img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
     .print-header-text { text-align: center; }
-    .print-header-text .republic {
-      font-size: 8px;
-      font-weight: 600;
-      color: #555;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-    .print-header-text .agency {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--g1);
-      margin: 2px 0;
-    }
-    .print-header-text .division {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--g2);
-    }
+    .print-header-text .republic { font-size: 8px; font-weight: 600; color: #555; letter-spacing: 1px; text-transform: uppercase; }
+    .print-header-text .agency { font-size: 13px; font-weight: 700; color: var(--g1); margin: 2px 0; }
+    .print-header-text .division { font-size: 10px; font-weight: 600; color: var(--g2); }
 
-    /* ── Card ── */
-    .card {
-      background: #f8faf8;
-      border-radius: 8px;
-      border: 1px solid var(--br);
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-    .ch {
-      padding: 8px 16px;
-      color: white;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .9px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    .card { background: #f8faf8; border-radius: 8px; border: 1px solid var(--br); margin-bottom: 12px; overflow: hidden; }
+    .ch { padding: 8px 16px; color: white; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; display: flex; align-items: center; gap: 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .ch.grn { background: linear-gradient(90deg, var(--g0), var(--g2)); }
     .ch.center { justify-content: center; }
     .cb { padding: 12px 16px; }
 
-    /* ── Profile grid ── */
     .pg { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
-    .pi label {
-      font-size: 7px; font-weight: 600; color: var(--mu);
-      text-transform: uppercase; letter-spacing: .6px;
-      display: block; margin-bottom: 2px;
-    }
-    .pi span {
-      font-size: 9.5px; font-weight: 500; color: var(--cha);
-      display: block; padding-bottom: 4px;
-      border-bottom: 1px solid var(--dv);
-    }
+    .pi label { font-size: 7px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .6px; display: block; margin-bottom: 2px; }
+    .pi span { font-size: 9.5px; font-weight: 500; color: var(--cha); display: block; padding-bottom: 4px; border-bottom: 1px solid var(--dv); }
 
-    /* ── Table ── */
     .tw { overflow: visible; width: 100%; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; }
-    thead th {
-      background: var(--g0);
-      color: white;
-      font-size: 8.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-      border: 1px solid #3a4a58;
-      vertical-align: middle;
-      text-align: center;
-      padding: 4px 5px;
-      line-height: 1.2;
-      white-space: nowrap;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    thead th { background: var(--g0); color: white; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; border: 1px solid #3a4a58; vertical-align: middle; text-align: center; padding: 4px 5px; line-height: 1.2; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .ths { background: #2a3a4c !important; color: #a8b8c8 !important; font-size: 8px !important; }
     .tha { background: var(--g2) !important; border-color: #1e6b4c !important; }
     .thb { background: var(--nb) !important; border-color: #243f7a !important; }
-    tbody td {
-      border: 1px solid var(--br);
-      padding: 4px 4px;
-      text-align: center;
-      white-space: nowrap;
-      font-size: 10px;
-    }
+    tbody td { border: 1px solid var(--br); padding: 4px 4px; text-align: center; white-space: nowrap; font-size: 10px; }
     tbody td:nth-child(2), tbody td:last-child { white-space: normal; word-break: break-word; text-align: left; padding-left: 6px; }
     tbody tr:nth-child(even) { background: #f4f8f5; }
     .bc { font-weight: 700; background: var(--au2) !important; color: #6b4a10; font-size: 10px; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -224,7 +153,6 @@ async function handlePrint() {
     .period-cell { text-align: left; padding-left: 5px !important; line-height: 1.4; font-size: 10px; font-weight: 700; white-space: normal; word-break: break-word; }
     .prd-date { font-size: 9.5px; font-weight: 700; display: block; margin-top: 1px; }
 
-    /* ── Era rows ── */
     .era-fwd-row { background: #fff9f0 !important; }
     .era-fwd-row td { color: #8a5a0a !important; font-weight: 700 !important; font-style: italic; }
     .era-old-toggle { display: none !important; }
@@ -259,11 +187,6 @@ async function handlePrint() {
   });
 }
 
-function handleLogout(onLogout: () => void) {
-  if (!confirm('Are you sure you want to log out?')) return;
-  onLogout();
-}
-
 export default function UserPage({ onLogout }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
@@ -281,11 +204,10 @@ export default function UserPage({ onLogout }: Props) {
 
   return (
     <div>
-      <div className="user-action-bar no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
-          <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
-        </div>
+      {/* ── Action bar: Download & Print only (Logout removed) ── */}
+      <div className="user-action-bar no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
+        <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
       </div>
 
       <div className="card" id="userProfileCard">
