@@ -5,47 +5,53 @@ import type { RowDataPacket } from 'mysql2';
 export async function POST(req: Request) {
   try {
     const p = await req.json();
-    const name  = String(p.name ?? '').trim();
-    const newId = String(p.login_id ?? '').trim().toLowerCase();
-    const pw    = p.password ?? '';
+    const role       = String(p.role ?? 'admin');          // 'admin' | 'encoder'
+    const accountId  = Number(p.account_id ?? 0);          // 0 = new
+    const isDelete   = !!p._delete;
 
-    if (!name || !newId) return NextResponse.json({ ok: false, error: 'Name and login ID are required.' }, { status: 400 });
-    if (!newId.endsWith('@deped.gov.ph')) return NextResponse.json({ ok: false, error: 'Login ID must use @deped.gov.ph domain.' }, { status: 400 });
-
-    const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM admin_config WHERE role='admin' LIMIT 1");
-    const row = (rows as RowDataPacket[])[0];
-    if (row) {
-      const finalPw = pw !== '' ? pw : row.password;
-      await pool.query('UPDATE admin_config SET name=?, login_id=?, password=? WHERE id=?', [name, newId, finalPw, row.id]);
-    } else {
-      const finalPw = pw !== '' ? pw : 'admin123';
-      await pool.query("INSERT INTO admin_config (login_id,password,name,role) VALUES (?,?,?,'admin')", [newId, finalPw, name]);
+    // ── Delete ────────────────────────────────────────────────
+    if (isDelete) {
+      if (!accountId) return NextResponse.json({ ok: false, error: 'account_id required for delete.' }, { status: 400 });
+      await pool.query('DELETE FROM admin_config WHERE id=? AND role=?', [accountId, role]);
+      return NextResponse.json({ ok: true });
     }
 
-    // Encoder section
-    const encName = p.enc_name ?? '';
-    const encId   = String(p.enc_login_id ?? '').toLowerCase();
-    const encPw   = p.enc_password ?? '';
+    // ── Create / Update ───────────────────────────────────────
+    const name    = String(p.name     ?? '').trim();
+    const loginId = String(p.login_id ?? '').trim().toLowerCase();
+    const pw      = p.password ?? '';
 
-    if (encId && !encId.endsWith('@deped.gov.ph'))
-      return NextResponse.json({ ok: false, error: 'Encoder Login ID must use @deped.gov.ph domain.' }, { status: 400 });
+    if (!name || !loginId)
+      return NextResponse.json({ ok: false, error: 'Name and login ID are required.' }, { status: 400 });
+    if (!loginId.endsWith('@deped.gov.ph'))
+      return NextResponse.json({ ok: false, error: 'Login ID must use @deped.gov.ph domain.' }, { status: 400 });
 
-    const [encRows] = await pool.query<RowDataPacket[]>("SELECT * FROM admin_config WHERE role='encoder' LIMIT 1");
-    const enc = (encRows as RowDataPacket[])[0];
-    if (enc) {
-      const updates: Record<string, string> = {};
-      if (encName) updates.name     = encName;
-      if (encId)   updates.login_id = encId;
-      if (encPw)   updates.password = encPw;
-      if (Object.keys(updates).length > 0) {
-        const sets = Object.keys(updates).map(k => `\`${k}\`=?`).join(',');
-        await pool.query(`UPDATE admin_config SET ${sets} WHERE id=?`, [...Object.values(updates), enc.id]);
-      }
-    } else if (encId) {
-      const ePw = encPw || 'encoder123';
-      await pool.query("INSERT INTO admin_config (login_id,password,name,role) VALUES (?,?,?,'encoder')", [encId, ePw, encName || 'Encoder']);
+    if (accountId > 0) {
+      // ── Update existing ──────────────────────────────────────
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT * FROM admin_config WHERE id=? AND role=? LIMIT 1',
+        [accountId, role]
+      );
+      const row = (rows as RowDataPacket[])[0];
+      if (!row) return NextResponse.json({ ok: false, error: 'Account not found.' }, { status: 404 });
+
+      const finalPw = pw !== '' ? pw : row.password;
+      await pool.query(
+        'UPDATE admin_config SET name=?, login_id=?, password=? WHERE id=?',
+        [name, loginId, finalPw, accountId]
+      );
+    } else {
+      // ── Create new ───────────────────────────────────────────
+      if (!pw)
+        return NextResponse.json({ ok: false, error: 'Password is required for new accounts.' }, { status: 400 });
+      await pool.query(
+        'INSERT INTO admin_config (login_id, password, name, role) VALUES (?, ?, ?, ?)',
+        [loginId, pw, name, role]
+      );
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e) { return NextResponse.json({ ok: false, error: String(e) }, { status: 500 }); }
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  }
 }
