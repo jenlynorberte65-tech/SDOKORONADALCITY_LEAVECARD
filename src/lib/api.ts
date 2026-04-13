@@ -5,15 +5,21 @@
 import type { ApiResponse, LeaveRecord, LeaveClassification, RowBalanceUpdate } from '@/types';
 
 const API_BASE = '/api';
+const API_TIMEOUT_MS = 10000; // 10 seconds — prevents infinite hangs
 
 export async function apiCall<T = Record<string, unknown>>(
   action: string,
   body: object = {},
   method: 'GET' | 'POST' = 'POST'
 ): Promise<ApiResponse<T>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     let url = `${API_BASE}/${action}`;
-    const opts: RequestInit = { headers: { 'Content-Type': 'application/json' } };
+    const opts: RequestInit = {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    };
     if (method === 'GET') {
       const params = new URLSearchParams(body as Record<string, string>);
       url += `?${params}`;
@@ -25,8 +31,15 @@ export async function apiCall<T = Record<string, unknown>>(
     const r = await fetch(url, opts);
     return await r.json();
   } catch (e) {
+    const err = e as Error;
+    if (err.name === 'AbortError') {
+      console.error(`API timeout: ${action} took longer than ${API_TIMEOUT_MS / 1000}s`);
+      return { ok: false, error: 'Request timed out. Please check your connection and try again.' };
+    }
     console.error('API error', e);
-    return { ok: false, error: (e as Error).message };
+    return { ok: false, error: err.message };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -61,7 +74,6 @@ export function calcDays(r: LeaveRecord): number {
   const isForceAction = (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved');
   const isForceDis    = (a.includes('force') || a.includes('mandatory')) &&  a.includes('disapproved');
 
-  // ✅ For both approved and disapproved force leave, use forceAmount if set
   if ((isForceAction || isForceDis) && r.forceAmount > 0) return r.forceAmount;
 
   if (r.from && r.to) {
@@ -149,20 +161,13 @@ export function sortRecordsByDate(records: LeaveRecord[]): void {
 
   segStarts.forEach((start, si) => {
     const end = segEnds[si];
-
-    // Collect only the positions of dated records
     const datedPositions: number[] = [];
     for (let i = start; i < end; i++) {
       if (recordSortKey(records[i]) !== null) datedPositions.push(i);
     }
     if (datedPositions.length < 2) return;
-
-    // Sort only the dated records by date
     const datedRecs = datedPositions.map(i => records[i]);
     datedRecs.sort((a, b) => recordSortKey(a)!.localeCompare(recordSortKey(b)!));
-
-    // Put sorted dated records back into their original dated positions
-    // Undated records are never touched — they stay exactly where they are
     datedPositions.forEach((pos, i) => { records[pos] = datedRecs[i]; });
   });
 }
@@ -175,54 +180,22 @@ export function isEmptyRecord(r: LeaveRecord): boolean {
 }
 
 // ── Compute row balance updates ──────────────────────────────
-//
-// FIX: Era isolation — each era's balance computation is fully
-// self-contained. Conversion records act as hard boundaries.
-//
-// When a conversion record is encountered, we do NOT carry over
-// the running balance into the NEXT era's computation here.
-// Instead, the conversion record itself stores the forwarded
-// balances (fwdBV / fwdBS) which are used by EraSection to seed
-// the display. The DB row for the conversion stores them in
-// setA_balance / setB_balance via recordToRow.
-//
-// Conversion seeding rules (mirrors EraSection logic exactly):
-//
-//   Teaching → Non-Teaching:
-//     The single Teaching balance (bal) becomes BOTH bV and bS
-//     in the new Non-Teaching era. Store bal in BOTH fwdBV and fwdBS
-//     so the conversion row's setA_balance = setB_balance = bal.
-//
-//   Non-Teaching → Teaching:
-//     Teaching uses a SINGLE balance. Seed from bV (vacation balance).
-//     Store bV in fwdBV (setA_balance). fwdBS (setB_balance) = 0.
-//
-// IMPORTANT: Changing records in one era will NEVER affect another
-// era's display because each era seeds only from its conversion record's
-// stored fwdBV/fwdBS — not from the live running balance of the prior era.
-// The only time a prior era affects a later one is when you explicitly
-// re-save the conversion record (i.e. when you actually perform a conversion).
 export function computeRowBalanceUpdates(
   records: LeaveRecord[],
   empId: string,
   empStatus: 'Teaching' | 'Non-Teaching'
 ): RowBalanceUpdate[] {
-  // ── Step 1: Split records into segments by conversion boundaries ──
-  // Each segment is: { eraStatus, convRecord | null, dataRecords[] }
-  // This ensures each era is computed independently.
   interface EraSegment {
     eraStatus: 'Teaching' | 'Non-Teaching';
-    conv: LeaveRecord | null;   // the conversion record that STARTS this era (null for Era 1)
-    recs: LeaveRecord[];        // data records in this era (no conversion records)
+    conv: LeaveRecord | null;
+    recs: LeaveRecord[];
   }
 
   const segments: EraSegment[] = [];
   let currentStatus: 'Teaching' | 'Non-Teaching' = empStatus;
 
-  // Find the first conversion to determine the actual starting status of Era 1
   const firstConv = records.find(r => r._conversion);
   if (firstConv) {
-    // Era 1's status is the fromStatus of the first conversion
     currentStatus = (firstConv.fromStatus ?? empStatus) as 'Teaching' | 'Non-Teaching';
   }
 
@@ -231,39 +204,22 @@ export function computeRowBalanceUpdates(
   for (const r of records) {
     if (!r) continue;
     if (r._conversion) {
-      // Push the completed segment
       segments.push(currentSeg);
-      // Start a new segment for the era AFTER this conversion
       const newStatus = (r.toStatus ?? empStatus) as 'Teaching' | 'Non-Teaching';
       currentSeg = { eraStatus: newStatus, conv: r, recs: [] };
     } else {
       currentSeg.recs.push(r);
     }
   }
-  // Push the last (current active) segment
   segments.push(currentSeg);
 
-  // ── Step 2: Compute each segment independently ──
   const updates: RowBalanceUpdate[] = [];
 
   for (const seg of segments) {
     if (seg.eraStatus === 'Teaching') {
-      // ── Teaching era ──
-      // Seed from the conversion record's stored forwarded balance.
-      // conv.fwdBV holds the balance forwarded into this Teaching era.
-      // For Era 1 (no conv): start from 0.
-      // Calculation starts from ZERO — Balance Forwarded is display only.
-        let bal = 0;
-
-      // Also update the conversion record row itself in the DB
-      // to reflect the correct forwarded balance snapshot.
-      // (No update needed for the conv row's balance here — that is
-      //  handled by the save_conversion API route when the conversion
-      //  is first created or re-saved. We only recompute data rows.)
-
+      let bal = 0;
       for (const r of seg.recs) {
         if (!r._record_id) continue;
-
         const C = classifyLeave(r.action || '');
         let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
         let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
@@ -302,22 +258,12 @@ export function computeRowBalanceUpdates(
           setB_wop:     +rowBWOP.toFixed(3),
         });
       }
-
     } else {
-      // ── Non-Teaching era ──
-      // Seed from the conversion record's stored forwarded balances.
-      //
-      // If converting FROM Teaching: fwdBV holds the single Teaching balance.
-      //   Use it for BOTH bV and bS (Teaching → NT: single balance seeds both accumulators).
-      // If converting FROM Non-Teaching (or Era 1): use fwdBV and fwdBS directly.
-      // Era 1 (no conv): start both from 0.
-     // Calculation starts from ZERO — Balance Forwarded is display only.
-        let bV = 0;
-        let bS = 0;
+      let bV = 0;
+      let bS = 0;
 
       for (const r of seg.recs) {
         if (!r._record_id) continue;
-
         const C = classifyLeave(r.action || '');
         let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
         let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
