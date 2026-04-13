@@ -194,7 +194,7 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
               gradientTop="linear-gradient(135deg, #ffd6e8, #ff9ec8)"
               badgeBg="#ffe0f0"
               badgeColor="#b03070"
-              badge="Frontend & Backend"
+              badge="Frontend"
               hearts="🩷 🌸 🩷"
             />
             <DeveloperCard
@@ -202,12 +202,12 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
               contact="09531989302"
               location="Isulan, Sultan Kudarat"
               photo={JANICE_PHOTO}
-              accentColor="#c084fc"
-              gradientTop="linear-gradient(135deg, #f0d6ff, #e0a0ff)"
-              badgeBg="#f0e0ff"
-              badgeColor="#8030b0"
-              badge="Systems & QA"
-              hearts="💜 🌷 💜"
+              accentColor="#ec4899"
+              gradientTop="linear-gradient(135deg, #fbb6ce, #f9a8d4)"
+              badgeBg="#fce7f3"
+              badgeColor="#9d174d"
+              badge="Backend"
+              hearts="🌺 🩷 🌺"
             />
           </div>
 
