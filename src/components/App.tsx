@@ -5,12 +5,37 @@ import LoginScreen from '@/components/LoginScreen';
 import AppScreen from '@/components/AppScreen';
 import { apiCall } from '@/lib/api';
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  App.tsx — Root component
+//
+//  HOW SESSION RESTORE WORKS (and why it won't double-load):
+//
+//  LoginScreen sets two things in sessionStorage on successful login:
+//    1. 'deped_session'        — session data (role, page, etc.)
+//    2. 'deped_just_logged_in' — one-time flag: "LoginScreen already loaded
+//                                the DB, skip restoreSession this time"
+//
+//  restoreSession() checks for that flag first. If present, it removes it
+//  and returns immediately — no duplicate get_personnel call, no race.
+//
+//  On a true page refresh (F5 / tab reopen), the flag is gone so
+//  restoreSession() runs normally and reloads the full DB once.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function App() {
   const { state, dispatch } = useAppStore();
 
   useEffect(() => {
     async function restoreSession() {
       try {
+        // ── One-time flag set by LoginScreen after a fresh login ──────────
+        // Prevents a duplicate get_personnel call racing with LoginScreen.
+        const justLoggedIn = sessionStorage.getItem('deped_just_logged_in');
+        if (justLoggedIn) {
+          sessionStorage.removeItem('deped_just_logged_in');
+          return;
+        }
+
         const raw = sessionStorage.getItem('deped_session');
         if (!raw) return;
         const s = JSON.parse(raw);
@@ -25,8 +50,6 @@ export default function App() {
             },
           });
           await loadDB();
-          // LOGIN_SCHOOL_ADMIN already sets page to 'home'; only override if
-          // the saved page was something other than 'home' or 'sa'.
           const savedPage = s.page || 'home';
           dispatch({ type: 'SET_PAGE', payload: savedPage as never });
 
@@ -50,7 +73,6 @@ export default function App() {
               });
           });
           await loadDB();
-
           // Restore page — if on nt/t card, also reload records
           const page = s.page || 'home';
           if ((page === 'nt' || page === 't') && s.curId) {
@@ -71,7 +93,6 @@ export default function App() {
         }
       } catch { /* ignore */ }
     }
-
     restoreSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -84,7 +105,6 @@ export default function App() {
   }
 
   const loggedIn = state.isAdmin || state.isSchoolAdmin || state.role === 'employee';
-
   return (
     <div>
       {!loggedIn && <LoginScreen />}
