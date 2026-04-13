@@ -15,20 +15,21 @@ export default function LoginScreen() {
 
   // ── Fetches all personnel in paginated chunks to avoid OOM crashes ──────
   async function fetchAllPersonnel(): Promise<Personnel[]> {
-    const all: Personnel[] = [];
-    let page = 1;
-    const limit = 100;
+  const all: Personnel[] = [];
+  let page = 1;
+  const limit = 100;
 
-    while (true) {
-      const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET');
-      if (!res.ok || !res.data) break;
-      all.push(...(res.data as Personnel[]));
-      if (all.length >= res.total) break; // no more pages
-      page++;
-    }
-
-    return all;
+  while (true) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET') as any;
+    if (!res.ok || !res.data) break;
+    all.push(...(res.data as Personnel[]));
+    if (all.length >= res.total) break;
+    page++;
   }
+
+  return all;
+}
 
   async function handleLogin() {
     setError('');
