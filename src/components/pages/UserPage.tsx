@@ -282,7 +282,6 @@ export default function UserPage({ onLogout }: Props) {
   return (
     <div>
       <div className="user-action-bar no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
-        <button className="nb out" onClick={() => handleLogout(onLogout)} style={{ height: 40, padding: '0 18px', fontSize: 12, fontWeight: 600 }}>🔒 Logout</button>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn b-pdf" onClick={handleDownload}>⬇ Download PDF</button>
           <button className="btn b-prn" onClick={handlePrint}>🖨 Print</button>
