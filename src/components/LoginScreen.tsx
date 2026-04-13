@@ -24,14 +24,14 @@ export default function LoginScreen() {
       dispatch({ type: 'LOGIN_ADMIN', payload: { name: res.name!, loginId: res.login_id!, isEncoder: res.role === 'encoder' } });
       const dbRes = await apiCall('get_personnel', {}, 'GET');
       if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
-      dispatch({ type: 'SET_PAGE', payload: 'home' }); // ← was 'list'
+      dispatch({ type: 'SET_PAGE', payload: 'home' });
       saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'home' });
 
     } else if (res.role === 'school_admin') {
       dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: res.name!, loginId: res.login_id!, dbId: res.db_id! } });
       const dbRes = await apiCall('get_personnel', {}, 'GET');
       if (dbRes.ok && dbRes.data) dispatch({ type: 'SET_DB', payload: dbRes.data });
-      dispatch({ type: 'SET_PAGE', payload: 'home' }); // ← was 'sa'
+      dispatch({ type: 'SET_PAGE', payload: 'home' });
       saveSession({ isAdmin: false, isEncoder: false, isSchoolAdmin: true, curId: null, page: 'home', schoolAdminCfg: { id: res.login_id, dbId: res.db_id, name: res.name } });
 
     } else if (res.role === 'employee') {
@@ -51,7 +51,14 @@ export default function LoginScreen() {
   }
 
   function saveSession(data: Record<string, unknown>) {
+    // ── Clear any stale session first (e.g. from a previous password) ────
+    sessionStorage.removeItem('deped_session');
     sessionStorage.setItem('deped_session', JSON.stringify(data));
+
+    // ── Tell App.tsx that LoginScreen already loaded the DB ───────────────
+    // This prevents App.tsx restoreSession() from firing a second
+    // get_personnel call and racing / overwriting our freshly loaded data.
+    sessionStorage.setItem('deped_just_logged_in', '1');
   }
 
   return (
