@@ -33,8 +33,10 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const monthLabel       = currentMonthLabel();
   const teachingCount    = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
   const nonTeachingCount = activeOnly.filter(e => (e.status ?? '').toLowerCase() !== 'teaching').length;
-  const updatedCount     = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '')).length;
-  const notUpdatedCount  = activeOnly.length - updatedCount;
+
+  // ✅ FIX: pass lastEditedAt so the primary check in isCardUpdatedThisMonth works
+  const updatedCount    = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length;
+  const notUpdatedCount = activeOnly.length - updatedCount;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -48,7 +50,8 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
       if (fSch && (e.school || '').trim().toUpperCase() !== fSch) return false;
       if (fCard) {
         if (e.account_status === 'inactive') return false;
-        const upd = isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+        // ✅ FIX: pass lastEditedAt here too
+        const upd = isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
         if (fCard === 'updated' && !upd) return false;
         if (fCard === 'pending' &&  upd) return false;
       }
@@ -182,7 +185,8 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
               ) : filtered.map(e => {
                 const isT      = (e.status ?? '').toLowerCase() === 'teaching';
                 const inactive = e.account_status === 'inactive';
-                const upd      = inactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+                // ✅ FIX: pass lastEditedAt so badge reflects DB value correctly
+                const upd      = inactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
 
                 return (
                   <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
