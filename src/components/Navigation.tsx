@@ -15,28 +15,27 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps) {
   const { state } = useAppStore();
-  const [showAdminProfile,   setShowAdminProfile]   = useState(false);
   const [showEncoderProfile, setShowEncoderProfile] = useState(false);
   const [showSAProfile,      setShowSAProfile]      = useState(false);
   const [showLogout,         setShowLogout]         = useState(false);
 
-  const isAdminOnly = state.isAdmin && !state.isEncoder;
   const displayName = state.isSchoolAdmin
     ? state.schoolAdminCfg.name
     : state.isEncoder
       ? state.encoderCfg.name
       : state.adminCfg.name;
+
   const roleLabel = state.isSchoolAdmin
     ? 'School Admin · Edit Profile'
     : state.isEncoder
-      ? 'Encoder'
-      : 'Admin · Edit Profile';
+      ? 'Encoder · Edit Profile'
+      : 'Administrator';
 
   function handleUserChipClick() {
+    // Admin profile is now in the topbar — only encoder/SA use this chip
     onClose();
     if (state.isSchoolAdmin)  setShowSAProfile(true);
     else if (state.isEncoder) setShowEncoderProfile(true);
-    else                      setShowAdminProfile(true);
   }
 
   // ── Nav items per role ────────────────────────────────────
@@ -72,7 +71,12 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
           <button className="sb-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="sb-user" onClick={handleUserChipClick}>
+        {/* User chip — clicking opens profile for encoder/SA only */}
+        <div
+          className="sb-user"
+          onClick={!state.isAdmin ? handleUserChipClick : undefined}
+          style={{ cursor: state.isAdmin ? 'default' : 'pointer' }}
+        >
           <div className="sb-av">{(displayName || 'A')[0].toUpperCase()}</div>
           <div>
             <div className="sb-uname">{displayName}</div>
@@ -99,7 +103,6 @@ export function Sidebar({ open, onClose, onNavigate, currentPage }: SidebarProps
         </nav>
       </div>
 
-      {showAdminProfile   && <AdminProfileModal   onClose={() => setShowAdminProfile(false)} />}
       {showEncoderProfile && <EncoderProfileModal onClose={() => setShowEncoderProfile(false)} />}
       {showSAProfile      && <SAProfileModal      onClose={() => setShowSAProfile(false)} />}
       {showLogout         && <LogoutModal         onClose={() => setShowLogout(false)} />}
@@ -112,9 +115,11 @@ interface TopbarProps {
   showMenu: boolean;
   onLogout: () => void;
   showLogoutBtn?: boolean;
+  showSettings?: boolean;
+  onSettingsClick?: () => void;
 }
 
-export function Topbar({ onMenuClick, showMenu, onLogout, showLogoutBtn }: TopbarProps) {
+export function Topbar({ onMenuClick, showMenu, onLogout, showLogoutBtn, showSettings, onSettingsClick }: TopbarProps) {
   return (
     <div className="topbar no-print">
       <div className="tb-in">
@@ -141,6 +146,16 @@ export function Topbar({ onMenuClick, showMenu, onLogout, showLogoutBtn }: Topba
           </div>
         </div>
         <div className="tb-nav">
+          {showSettings && (
+            <button
+              className="nb"
+              onClick={onSettingsClick}
+              title="Account Management"
+              style={{ gap: 6 }}
+            >
+              ⚙️ <span style={{ fontSize: 11 }}>Accounts</span>
+            </button>
+          )}
           {showLogoutBtn && (
             <button className="nb out" onClick={onLogout}>🔒 Logout</button>
           )}
