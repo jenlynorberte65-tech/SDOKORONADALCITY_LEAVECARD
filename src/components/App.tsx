@@ -4,6 +4,7 @@ import { useAppStore } from '@/hooks/useAppStore';
 import LoginScreen from '@/components/LoginScreen';
 import AppScreen from '@/components/AppScreen';
 import { apiCall } from '@/lib/api';
+import type { Personnel } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  App.tsx — Root component
@@ -24,6 +25,24 @@ import { apiCall } from '@/lib/api';
 // Set by LoginScreen, consumed once by restoreSession().
 export let justLoggedIn = false;
 export function setJustLoggedIn() { justLoggedIn = true; }
+
+// ── Shared paginated loader — fetches all personnel in 100-record chunks ─────
+// This prevents the browser OOM crash caused by loading everything at once.
+export async function fetchAllPersonnel(): Promise<Personnel[]> {
+  const all: Personnel[] = [];
+  let page = 1;
+  const limit = 100;
+
+  while (true) {
+    const res = await apiCall(`get_personnel?page=${page}&limit=${limit}`, {}, 'GET');
+    if (!res.ok || !res.data) break;
+    all.push(...(res.data as Personnel[]));
+    if (all.length >= (res.total ?? all.length)) break; // no more pages
+    page++;
+  }
+
+  return all;
+}
 
 export default function App() {
   const { state, dispatch } = useAppStore();
@@ -98,10 +117,11 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Paginated DB loader — replaces the old single-request loadDB ──────────
   async function loadDB() {
     dispatch({ type: 'SET_LOADING', payload: true });
-    const res = await apiCall('get_personnel', {}, 'GET');
-    if (res.ok && res.data) dispatch({ type: 'SET_DB', payload: res.data });
+    const personnel = await fetchAllPersonnel();
+    if (personnel.length) dispatch({ type: 'SET_DB', payload: personnel });
     dispatch({ type: 'SET_LOADING', payload: false });
   }
 
