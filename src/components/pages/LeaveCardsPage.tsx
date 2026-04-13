@@ -180,7 +180,8 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
             {sorted.map(e => {
               const isInactive = e.account_status === 'inactive';
               const isT        = (e.status ?? '').toLowerCase() === 'teaching';
-              const upd        = !isInactive && isCardUpdatedThisMonth(e.records ?? [], e.status ?? '');
+              // ✅ FIX: pass lastEditedAt so badge reflects DB value correctly
+              const upd        = !isInactive && isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
 
               return (
                 <button
