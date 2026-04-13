@@ -4,197 +4,304 @@ import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall, validateDepedEmail } from '@/lib/api';
 import type { SchoolAdminAccount } from '@/types';
 
+interface AccountRow {
+  id: number;
+  name: string;
+  login_id: string;
+  password?: string;
+  role: string;
+}
+
 export default function AdminProfileModal({ onClose }: { onClose: () => void }) {
-  const { state, dispatch } = useAppStore();
+  const { dispatch } = useAppStore();
 
-  // Admin fields
-  const [apName, setApName]   = useState('');
-  const [apID,   setApID]     = useState('');
-  const [apPw,   setApPw]     = useState('');
-  const [apPw2,  setApPw2]    = useState('');
-  const [showApPw,  setShowApPw]  = useState(false);
-  const [showApPw2, setShowApPw2] = useState(false);
-  // Encoder fields
-  const [encName, setEncName] = useState('');
-  const [encID,   setEncID]   = useState('');
-  const [encPw,   setEncPw]   = useState('');
-  const [showEncPw, setShowEncPw] = useState(false);
-  // Error
-  const [error, setError]   = useState('');
-  const [saving, setSaving] = useState(false);
-  // School Admin accounts
+  // ── Admin accounts ──────────────────────────────────────────
+  const [admins,   setAdmins]   = useState<AccountRow[]>([]);
+  const [encoders, setEncoders] = useState<AccountRow[]>([]);
   const [saAccounts, setSaAccounts] = useState<SchoolAdminAccount[]>([]);
-  const [saFormOpen, setSaFormOpen] = useState(false);
-  const [saDbId, setSaDbId]         = useState(0);
-  const [saName, setSaName]         = useState('');
-  const [saEmail, setSaEmail]       = useState('');
-  const [saPw, setSaPw]             = useState('');
-  const [saError, setSaError]       = useState('');
-  const [showSaPw, setShowSaPw]     = useState(false);
-  const [saTitle, setSaTitle]       = useState('➕ New School Admin');
 
-  useEffect(() => {
-    setApName(state.adminCfg.name || '');
-    setApID(state.adminCfg.id || '');
-    setApPw(''); setApPw2('');
-    setEncName(state.encoderCfg.name || '');
-    setEncID(state.encoderCfg.id || '');
-    setEncPw('');
-    setError('');
-    loadSAAccounts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // ── Inline form state (shared for admin + encoder) ──────────
+  const [adminForm,   setAdminForm]   = useState<{open:boolean;id:number;name:string;email:string;pw:string;showPw:boolean;error:string}>({ open:false,id:0,name:'',email:'',pw:'',showPw:false,error:'' });
+  const [encForm,     setEncForm]     = useState<{open:boolean;id:number;name:string;email:string;pw:string;showPw:boolean;error:string}>({ open:false,id:0,name:'',email:'',pw:'',showPw:false,error:'' });
+  const [saForm,      setSaForm]      = useState<{open:boolean;id:number;name:string;email:string;pw:string;showPw:boolean;error:string}>({ open:false,id:0,name:'',email:'',pw:'',showPw:false,error:'' });
 
-  async function loadSAAccounts() {
-    const res = await apiCall('get_school_admins', {}, 'GET');
-    if (res.ok) setSaAccounts(res.school_admins || []);
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
+    const [ar, er, sr] = await Promise.all([
+      apiCall('get_admin_cfg', { role: 'admin' },   'GET'),
+      apiCall('get_admin_cfg', { role: 'encoder' }, 'GET'),
+      apiCall('get_school_admins', {}, 'GET'),
+    ]);
+    if (ar.ok) setAdmins((ar as any).accounts || []);
+    if (er.ok) setEncoders((er as any).accounts || []);
+    if (sr.ok) setSaAccounts(sr.school_admins || []);
   }
 
-  async function handleSave() {
-    setError('');
-    if (!apName) { setError('Admin display name cannot be empty.'); return; }
-    const emailErr = validateDepedEmail(apID.toLowerCase().trim());
-    if (emailErr) { setError(emailErr); return; }
-    if (apPw || apPw2) {
-      if (apPw !== apPw2) { setError('Passwords do not match.'); return; }
-      if (apPw.length < 4) { setError('Min 4 characters.'); return; }
-    }
-    if (encID) {
-      const encEmailErr = validateDepedEmail(encID.toLowerCase().trim());
-      if (encEmailErr) { setError(encEmailErr); return; }
-    }
-    setSaving(true);
-    const res = await apiCall('save_admin', {
-      name: apName, login_id: apID, ...(apPw ? { password: apPw } : {}),
-      ...(encName ? { enc_name: encName } : {}),
-      ...(encID   ? { enc_login_id: encID } : {}),
-      ...(encPw && encPw.length >= 4 ? { enc_password: encPw } : {}),
-    });
-    setSaving(false);
-    if (!res.ok) { setError(res.error || 'Save failed.'); return; }
-    dispatch({ type: 'SET_ADMIN_CFG', payload: { admin: { name: apName, id: apID }, encoder: { name: encName, id: encID } } });
-    onClose();
+  const inputStyle = {
+    height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)',
+    borderRadius: 7, fontSize: 12, width: '100%', background: 'white',
+    color: 'var(--cha)', fontFamily: 'Inter,sans-serif', boxSizing: 'border-box' as const,
+  };
+
+  // ── Generic open-form helper ────────────────────────────────
+  function openForm(
+    setter: typeof setAdminForm,
+    accounts: AccountRow[],
+    id: number
+  ) {
+    const found = id > 0 ? accounts.find(a => a.id === id) : null;
+    setter({ open:true, id, name: found?.name||'', email: found?.login_id||'', pw:'', showPw:false, error:'' });
   }
 
   function openSaForm(id: number) {
     const sa = id > 0 ? saAccounts.find(x => x.id === id) : null;
-    setSaDbId(id);
-    setSaTitle(id > 0 ? `✏️ Edit: ${sa?.name || ''}` : '➕ New School Admin');
-    setSaName(sa?.name || '');
-    setSaEmail(sa?.login_id || '');
-    setSaPw('');
-    setSaError('');
-    setSaFormOpen(true);
+    setSaForm({ open:true, id, name: sa?.name||'', email: sa?.login_id||'', pw:'', showPw:false, error:'' });
   }
 
-  async function saveSaForm() {
-    setSaError('');
-    if (!saName) { setSaError('Display name is required.'); return; }
-    const emailErr = validateDepedEmail(saEmail.toLowerCase().trim());
-    if (emailErr) { setSaError(emailErr); return; }
-    if (saDbId === 0 && !saPw) { setSaError('Password is required for new accounts.'); return; }
-    const res = await apiCall('save_school_admin', { sa_id: saDbId, name: saName, login_id: saEmail, ...(saPw ? { password: saPw } : {}) });
-    if (!res.ok) { setSaError(res.error || 'Save failed.'); return; }
-    setSaFormOpen(false);
-    loadSAAccounts();
+  // ── Save admin account ──────────────────────────────────────
+  async function saveAdmin() {
+    const f = adminForm;
+    if (!f.name) { setAdminForm(p=>({...p,error:'Display name is required.'})); return; }
+    const emailErr = validateDepedEmail(f.email.toLowerCase().trim());
+    if (emailErr) { setAdminForm(p=>({...p,error:emailErr})); return; }
+    if (f.id === 0 && !f.pw) { setAdminForm(p=>({...p,error:'Password is required for new accounts.'})); return; }
+    if (f.pw && f.pw.length < 4) { setAdminForm(p=>({...p,error:'Min 4 characters.'})); return; }
+
+    const res = await apiCall('save_admin', {
+      role: 'admin', account_id: f.id,
+      name: f.name, login_id: f.email,
+      ...(f.pw ? { password: f.pw } : {}),
+    });
+    if (!res.ok) { setAdminForm(p=>({...p,error:res.error||'Save failed.'})); return; }
+    dispatch({ type:'SET_ADMIN_CFG', payload:{ admin:{ name:f.name, id:f.email }, encoder: { name:'', id:'' } } });
+    setAdminForm(p=>({...p,open:false}));
+    loadAll();
   }
 
-  async function deleteSaAccount(id: number, name: string) {
-    if (!confirm(`Delete school admin account for "${name}"?\nThis cannot be undone.`)) return;
+  // ── Save encoder account ────────────────────────────────────
+  async function saveEncoder() {
+    const f = encForm;
+    if (!f.name) { setEncForm(p=>({...p,error:'Display name is required.'})); return; }
+    const emailErr = validateDepedEmail(f.email.toLowerCase().trim());
+    if (emailErr) { setEncForm(p=>({...p,error:emailErr})); return; }
+    if (f.id === 0 && !f.pw) { setEncForm(p=>({...p,error:'Password is required for new accounts.'})); return; }
+    if (f.pw && f.pw.length < 4) { setEncForm(p=>({...p,error:'Min 4 characters.'})); return; }
+
+    const res = await apiCall('save_admin', {
+      role: 'encoder', account_id: f.id,
+      name: f.name, login_id: f.email,
+      ...(f.pw ? { password: f.pw } : {}),
+    });
+    if (!res.ok) { setEncForm(p=>({...p,error:res.error||'Save failed.'})); return; }
+    dispatch({ type:'SET_ADMIN_CFG', payload:{ admin:{ name:'', id:'' }, encoder:{ name:f.name, id:f.email } } });
+    setEncForm(p=>({...p,open:false}));
+    loadAll();
+  }
+
+  // ── Save school admin ───────────────────────────────────────
+  async function saveSa() {
+    const f = saForm;
+    if (!f.name) { setSaForm(p=>({...p,error:'Display name is required.'})); return; }
+    const emailErr = validateDepedEmail(f.email.toLowerCase().trim());
+    if (emailErr) { setSaForm(p=>({...p,error:emailErr})); return; }
+    if (f.id === 0 && !f.pw) { setSaForm(p=>({...p,error:'Password is required for new accounts.'})); return; }
+
+    const res = await apiCall('save_school_admin', {
+      sa_id: f.id, name: f.name, login_id: f.email,
+      ...(f.pw ? { password: f.pw } : {}),
+    });
+    if (!res.ok) { setSaForm(p=>({...p,error:res.error||'Save failed.'})); return; }
+    setSaForm(p=>({...p,open:false}));
+    loadAll();
+  }
+
+  async function deleteAccount(role: 'admin'|'encoder', id: number, name: string) {
+    if (!confirm(`Delete "${name}"?\nThis cannot be undone.`)) return;
+    const res = await apiCall('save_admin', { role, account_id: id, _delete: true });
+    if (!res.ok) { alert('Delete failed: ' + (res.error||'Unknown error')); return; }
+    loadAll();
+  }
+
+  async function deleteSa(id: number, name: string) {
+    if (!confirm(`Delete school admin "${name}"?\nThis cannot be undone.`)) return;
     const res = await apiCall('delete_school_admin', { sa_id: id });
-    if (!res.ok) { alert('Delete failed: ' + (res.error || 'Unknown error')); return; }
-    loadSAAccounts();
+    if (!res.ok) { alert('Delete failed: ' + (res.error||'Unknown error')); return; }
+    loadAll();
   }
 
-  const inputStyle = { height: 'var(--H)', padding: '0 12px', border: '1.5px solid var(--br)', borderRadius: 7, fontSize: 12, width: '100%', background: 'white', color: 'var(--cha)', fontFamily: 'Inter,sans-serif', boxSizing: 'border-box' as const };
+  // ── Reusable inline account form ────────────────────────────
+  function AccountForm({
+    form, setForm, onSave, isNew,
+    accentColor,
+  }: {
+    form: typeof adminForm;
+    setForm: typeof setAdminForm;
+    onSave: () => void;
+    isNew: boolean;
+    accentColor: string;
+  }) {
+    return (
+      <div style={{ background:'white', border:`1.5px dashed ${accentColor}`, borderRadius:8, padding:14, marginBottom:10 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:accentColor, marginBottom:10 }}>
+          {isNew ? '➕ New Account' : '✏️ Edit Account'}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div className="f" style={{ gridColumn:'span 2' }}>
+            <label>Display Name <span style={{ color:'#e53e3e',fontSize:10 }}>*</span></label>
+            <input style={inputStyle} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="e.g. Juan Dela Cruz" />
+          </div>
+          <div className="f" style={{ gridColumn:'span 2' }}>
+            <label>Login Email <span style={{ color:'#e53e3e',fontSize:10 }}>(@deped.gov.ph) *</span></label>
+            <input type="email" style={inputStyle} value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="user@deped.gov.ph" />
+          </div>
+          <div className="f" style={{ gridColumn:'span 2' }}>
+            <label>{isNew ? <>Password <span style={{ color:'#e53e3e',fontSize:10 }}>*</span></> : <>New Password <span style={{ color:'var(--mu)',fontSize:10 }}>(blank = keep)</span></>}</label>
+            <div className="ew">
+              <input type={form.showPw?'text':'password'} style={inputStyle} value={form.pw} onChange={e=>setForm(p=>({...p,pw:e.target.value}))} />
+              <button className="eye-btn" type="button" onClick={()=>setForm(p=>({...p,showPw:!p.showPw}))}>{form.showPw?'🙈':'👁'}</button>
+            </div>
+          </div>
+          {/* Show current password if editing */}
+          {!isNew && form.email && (
+            <div className="f" style={{ gridColumn:'span 2' }}>
+              <label style={{ color:'var(--mu)' }}>Current stored password</label>
+              <input style={{ ...inputStyle, background:'#f9fafb', color:'var(--mu)' }} value="(hidden — enter new password above to change)" readOnly />
+            </div>
+          )}
+        </div>
+        {form.error && <p style={{ color:'var(--rd)',fontSize:11,marginTop:8 }}>{form.error}</p>}
+        <div style={{ display:'flex', gap:8, marginTop:12 }}>
+          <button className="btn b-slt b-sm" onClick={()=>setForm(p=>({...p,open:false}))}>Cancel</button>
+          <button className="btn b-sm" style={{ background:accentColor,color:'white' }} onClick={onSave}>💾 Save Account</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Reusable account list row ───────────────────────────────
+  function AccountRow({ acc, accentColor, onEdit, onDelete }: {
+    acc: AccountRow; accentColor: string;
+    onEdit: ()=>void; onDelete: ()=>void;
+  }) {
+    const [showPw, setShowPw] = useState(false);
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:'white', border:`1px solid ${accentColor}33`, borderRadius:8, marginBottom:7 }}>
+        <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${accentColor},${accentColor}cc)`, color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flexShrink:0 }}>
+          {(acc.name||'?')[0].toUpperCase()}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:accentColor }}>{acc.name}</div>
+          <div style={{ fontSize:10.5, color:'var(--mu)' }}>{acc.login_id}</div>
+          <div style={{ fontSize:10.5, color:'var(--mu)', display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
+            <span>🔑</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", letterSpacing:1 }}>
+              {showPw ? (acc.password || '(not loaded)') : '••••••••'}
+            </span>
+            <button style={{ background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--mu)',padding:'0 2px' }} onClick={()=>setShowPw(p=>!p)}>
+              {showPw?'🙈':'👁'}
+            </button>
+          </div>
+        </div>
+        <button className="btn b-sm" style={{ background:accentColor,color:'white',flexShrink:0 }} onClick={onEdit}>✏ Edit</button>
+        <button className="btn b-sm b-red" style={{ flexShrink:0 }} onClick={onDelete}>🗑</button>
+      </div>
+    );
+  }
 
   return (
     <div className="mo open">
-      <div className="mb" style={{ maxWidth: 560 }}>
+      <div className="mb" style={{ maxWidth:600 }}>
         <div className="mh">
-          <h3>⚙️ Admin Profile &amp; Account Settings</h3>
+          <h3>⚙️ Account Management</h3>
           <button className="btn b-slt b-sm" onClick={onClose}>✕</button>
         </div>
-        <div className="md" style={{ padding: '18px 24px 10px' }}>
+        <div className="md" style={{ padding:'18px 24px 10px' }}>
 
-          {/* ── Admin section ── */}
-          <div style={{ border: '1.5px solid #1a5c42', borderRadius: 10, padding: 16, marginBottom: 16, background: 'linear-gradient(135deg,#f0fff4,#e6ffed)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,var(--g1),var(--g2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>👑</div>
-              <div><div style={{ fontSize: 13, fontWeight: 700, color: 'var(--g1)' }}>Administrator Account</div><div style={{ fontSize: 10, color: 'var(--mu)' }}>Full system access — leave cards, personnel, settings</div></div>
-            </div>
-            <div className="ig" style={{ rowGap: 10 }}>
-              <div className="f" style={{ gridColumn: 'span 2' }}><label>Display Name</label><input style={inputStyle} value={apName} onChange={e => setApName(e.target.value)} /></div>
-              <div className="f" style={{ gridColumn: 'span 2' }}><label>Login Email <span style={{ color: '#e53e3e', fontSize: 10 }}>(@deped.gov.ph)</span></label><input type="email" style={inputStyle} value={apID} onChange={e => setApID(e.target.value)} placeholder="admin@deped.gov.ph" /></div>
-              <div className="f"><label>New Password <span style={{ color: 'var(--mu)', fontSize: 10 }}>(blank = keep)</span></label><div className="ew"><input type={showApPw ? 'text' : 'password'} style={inputStyle} value={apPw} onChange={e => setApPw(e.target.value)} /><button className="eye-btn" type="button" onClick={() => setShowApPw(p => !p)}>{showApPw ? '🙈' : '👁'}</button></div></div>
-              <div className="f"><label>Confirm Password</label><div className="ew"><input type={showApPw2 ? 'text' : 'password'} style={inputStyle} value={apPw2} onChange={e => setApPw2(e.target.value)} /><button className="eye-btn" type="button" onClick={() => setShowApPw2(p => !p)}>{showApPw2 ? '🙈' : '👁'}</button></div></div>
-            </div>
-          </div>
-
-          {/* ── Encoder section ── */}
-          <div style={{ border: '1.5px solid var(--nb)', borderRadius: 10, padding: 16, marginBottom: 16, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#1e3a6e,#2d5a9e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>✏️</div>
-              <div><div style={{ fontSize: 13, fontWeight: 700, color: '#1e3a6e' }}>Encoder Account</div><div style={{ fontSize: 10, color: 'var(--mu)' }}>Can edit leave cards and personnel records</div></div>
-            </div>
-            <div className="ig" style={{ rowGap: 10 }}>
-              <div className="f" style={{ gridColumn: 'span 2' }}><label>Display Name</label><input style={inputStyle} value={encName} onChange={e => setEncName(e.target.value)} placeholder="Records Encoder" /></div>
-              <div className="f" style={{ gridColumn: 'span 2' }}><label>Login Email <span style={{ color: '#e53e3e', fontSize: 10 }}>(@deped.gov.ph)</span></label><input type="email" style={inputStyle} value={encID} onChange={e => setEncID(e.target.value)} placeholder="encoder@deped.gov.ph" /></div>
-              <div className="f" style={{ gridColumn: 'span 2' }}><label>New Password <span style={{ color: 'var(--mu)', fontSize: 10 }}>(blank = keep)</span></label><div className="ew"><input type={showEncPw ? 'text' : 'password'} style={inputStyle} value={encPw} onChange={e => setEncPw(e.target.value)} /><button className="eye-btn" type="button" onClick={() => setShowEncPw(p => !p)}>{showEncPw ? '🙈' : '👁'}</button></div></div>
-            </div>
-          </div>
-
-          {/* ── School Admin section ── */}
-          <div style={{ border: '1.5px solid #7c3aed', borderRadius: 10, padding: 16, marginBottom: 4, background: 'linear-gradient(135deg,#faf5ff,#ede9fe)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏫</div>
-              <div><div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>School Admin Accounts</div><div style={{ fontSize: 10, color: 'var(--mu)' }}>Can register &amp; edit personnel only — no leave card access</div></div>
-            </div>
-            {/* List */}
-            <div style={{ marginBottom: 12 }}>
-              {saAccounts.length === 0 ? (
-                <p style={{ fontSize: 11.5, color: '#7c3aed', fontStyle: 'italic', padding: '4px 0 8px' }}>No school admin accounts yet. Add one below.</p>
-              ) : saAccounts.map(sa => (
-                <div key={sa.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'white', border: '1px solid #ddd6fe', borderRadius: 8, marginBottom: 7 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{(sa.name || 'S')[0].toUpperCase()}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#5b21b6' }}>{sa.name}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--mu)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sa.login_id}</div>
-                  </div>
-                  <button className="btn b-sm" style={{ background: '#7c3aed', color: 'white', flexShrink: 0 }} onClick={() => openSaForm(sa.id)}>✏ Edit</button>
-                  <button className="btn b-sm b-red" style={{ flexShrink: 0 }} onClick={() => deleteSaAccount(sa.id, sa.name)}>🗑</button>
-                </div>
-              ))}
-            </div>
-            {/* Inline form */}
-            {saFormOpen && (
-              <div style={{ background: 'white', border: '1.5px dashed #a855f7', borderRadius: 8, padding: 14, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#5b21b6', marginBottom: 10 }}>{saTitle}</div>
-                <div className="ig" style={{ rowGap: 10 }}>
-                  <div className="f" style={{ gridColumn: 'span 2' }}><label>Display Name <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label><input style={inputStyle} value={saName} onChange={e => setSaName(e.target.value)} placeholder="e.g. Juan Dela Cruz" /></div>
-                  <div className="f" style={{ gridColumn: 'span 2' }}><label>Login Email <span style={{ color: '#e53e3e', fontSize: 10 }}>(@deped.gov.ph) *</span></label><input type="email" style={inputStyle} value={saEmail} onChange={e => setSaEmail(e.target.value)} placeholder="schooladmin@deped.gov.ph" /></div>
-                  <div className="f" style={{ gridColumn: 'span 2' }}>
-                    <label>{saDbId > 0 ? <>New Password <span style={{ color: 'var(--mu)', fontSize: 10 }}>(blank = keep)</span></> : <>Password <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></>}</label>
-                    <div className="ew"><input type={showSaPw ? 'text' : 'password'} style={inputStyle} value={saPw} onChange={e => setSaPw(e.target.value)} /><button className="eye-btn" type="button" onClick={() => setShowSaPw(p => !p)}>{showSaPw ? '🙈' : '👁'}</button></div>
-                  </div>
-                </div>
-                {saError && <p style={{ color: 'var(--rd)', fontSize: 11, marginTop: 8 }}>{saError}</p>}
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button className="btn b-slt b-sm" onClick={() => setSaFormOpen(false)}>Cancel</button>
-                  <button className="btn b-sm" style={{ background: '#7c3aed', color: 'white' }} onClick={saveSaForm}>💾 Save Account</button>
+          {/* ── Admin Accounts ── */}
+          <div style={{ border:'1.5px solid #1a5c42', borderRadius:10, padding:16, marginBottom:16, background:'linear-gradient(135deg,#f0fff4,#e6ffed)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,var(--g1),var(--g2))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>👑</div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--g1)' }}>Administrator Accounts</div>
+                  <div style={{ fontSize:10, color:'var(--mu)' }}>Full system access — leave cards, personnel, settings</div>
                 </div>
               </div>
+              {!adminForm.open && (
+                <button className="btn b-sm" style={{ background:'#1a5c42',color:'white',flexShrink:0 }} onClick={()=>openForm(setAdminForm,admins,0)}>➕ Add</button>
+              )}
+            </div>
+            {admins.length === 0 && !adminForm.open && (
+              <p style={{ fontSize:11.5, color:'var(--g2)', fontStyle:'italic', padding:'4px 0 8px' }}>No admin accounts yet.</p>
             )}
-            {!saFormOpen && (
-              <button className="btn b-sm" style={{ background: '#7c3aed', color: 'white' }} onClick={() => openSaForm(0)}>➕ Add School Admin</button>
+            {admins.map(a => (
+              <AccountRow key={a.id} acc={a} accentColor="#1a5c42"
+                onEdit={()=>openForm(setAdminForm,admins,a.id)}
+                onDelete={()=>deleteAccount('admin',a.id,a.name)} />
+            ))}
+            {adminForm.open && (
+              <AccountForm form={adminForm} setForm={setAdminForm} onSave={saveAdmin} isNew={adminForm.id===0} accentColor="#1a5c42" />
             )}
           </div>
 
-          {error && <p style={{ color: 'var(--rd)', fontSize: 11.5, display: 'block', marginTop: 8 }}>{error}</p>}
+          {/* ── Encoder Accounts ── */}
+          <div style={{ border:'1.5px solid var(--nb)', borderRadius:10, padding:16, marginBottom:16, background:'linear-gradient(135deg,#eff6ff,#dbeafe)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#1e3a6e,#2d5a9e)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>✏️</div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#1e3a6e' }}>Encoder Accounts</div>
+                  <div style={{ fontSize:10, color:'var(--mu)' }}>Can edit leave cards and personnel records</div>
+                </div>
+              </div>
+              {!encForm.open && (
+                <button className="btn b-sm" style={{ background:'#1e3a6e',color:'white',flexShrink:0 }} onClick={()=>openForm(setEncForm,encoders,0)}>➕ Add</button>
+              )}
+            </div>
+            {encoders.length === 0 && !encForm.open && (
+              <p style={{ fontSize:11.5, color:'#1e3a6e', fontStyle:'italic', padding:'4px 0 8px' }}>No encoder accounts yet.</p>
+            )}
+            {encoders.map(e => (
+              <AccountRow key={e.id} acc={e} accentColor="#1e3a6e"
+                onEdit={()=>openForm(setEncForm,encoders,e.id)}
+                onDelete={()=>deleteAccount('encoder',e.id,e.name)} />
+            ))}
+            {encForm.open && (
+              <AccountForm form={encForm} setForm={setEncForm} onSave={saveEncoder} isNew={encForm.id===0} accentColor="#1e3a6e" />
+            )}
+          </div>
+
+          {/* ── School Admin Accounts ── */}
+          <div style={{ border:'1.5px solid #7c3aed', borderRadius:10, padding:16, marginBottom:4, background:'linear-gradient(135deg,#faf5ff,#ede9fe)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7c3aed,#a855f7)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>🏫</div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#5b21b6' }}>School Admin Accounts</div>
+                  <div style={{ fontSize:10, color:'var(--mu)' }}>Can register &amp; edit personnel only — no leave card access</div>
+                </div>
+              </div>
+              {!saForm.open && (
+                <button className="btn b-sm" style={{ background:'#7c3aed',color:'white',flexShrink:0 }} onClick={()=>openSaForm(0)}>➕ Add</button>
+              )}
+            </div>
+            {saAccounts.length === 0 && !saForm.open && (
+              <p style={{ fontSize:11.5, color:'#7c3aed', fontStyle:'italic', padding:'4px 0 8px' }}>No school admin accounts yet.</p>
+            )}
+            {saAccounts.map(sa => (
+              <AccountRow key={sa.id} acc={{ id:sa.id, name:sa.name, login_id:sa.login_id, role:'school_admin' }} accentColor="#7c3aed"
+                onEdit={()=>openSaForm(sa.id)}
+                onDelete={()=>deleteSa(sa.id,sa.name)} />
+            ))}
+            {saForm.open && (
+              <AccountForm form={saForm} setForm={setSaForm} onSave={saveSa} isNew={saForm.id===0} accentColor="#7c3aed" />
+            )}
+          </div>
+
         </div>
-        <div className="mf" style={{ gap: 10 }}>
-          <button className="btn b-slt" onClick={onClose}>Cancel</button>
-          <button className="btn b-pri" onClick={handleSave} disabled={saving}>{saving ? '⏳ Saving…' : '💾 Save Admin & Encoder'}</button>
+        <div className="mf">
+          <button className="btn b-slt" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
