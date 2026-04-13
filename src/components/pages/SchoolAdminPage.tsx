@@ -31,7 +31,6 @@ export default function SchoolAdminPage() {
     if (isNew) {
       dispatch({ type: 'ADD_EMPLOYEE', payload: emp });
     } else {
-      // FIX: pass originalId so UPDATE_EMPLOYEE finds the record even if ID changed
       dispatch({ type: 'UPDATE_EMPLOYEE', payload: { employee: emp, originalId: editEmp?.id ?? emp.id } });
     }
     setRegOpen(false); setEditEmp(null);
@@ -43,6 +42,7 @@ export default function SchoolAdminPage() {
         <StatBox icon="👥" iconClass="si-g" value={active.length} label="Total Personnel" />
         <StatBox icon="📚" iconClass="si-b" value={active.filter(e => e.status === 'Teaching').length} label="Teaching" />
         <StatBox icon="🏢" iconClass="si-a" value={active.filter(e => e.status === 'Non-Teaching').length} label="Non-Teaching" />
+        <StatBox icon="🎓" iconClass="si-g" value={active.filter(e => e.status === 'Teaching Related').length} label="Teaching Related" />
       </div>
 
       <div className="card">
@@ -62,6 +62,7 @@ export default function SchoolAdminPage() {
               <option value="">All Categories</option>
               <option value="Teaching">Teaching</option>
               <option value="Non-Teaching">Non-Teaching</option>
+              <option value="Teaching Related">Teaching Related</option>
             </select>
             <select className="tb-filter" value={fAcct} onChange={e => setFAcct(e.target.value)}>
               <option value="">All Accounts</option>
@@ -89,6 +90,7 @@ export default function SchoolAdminPage() {
                 <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--mu)', fontStyle: 'italic' }}>No personnel found.</td></tr>
               ) : filtered.map(e => {
                 const isT = e.status === 'Teaching';
+                const isTR = e.status === 'Teaching Related';
                 const inactive = e.account_status === 'inactive';
                 return (
                   <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
@@ -96,7 +98,12 @@ export default function SchoolAdminPage() {
                     <td style={{ textAlign: 'left', fontWeight: 600, paddingLeft: 10 }}>
                       {(e.surname || '').toUpperCase()}, {e.given || ''} {e.suffix || ''}
                     </td>
-                    <td style={{ textAlign: 'center' }}><span className={`badge ${isT ? 'bt' : 'bnt'}`}>{e.status}</span></td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${isT ? 'bt' : isTR ? 'bnt' : 'bnt'}`}
+                        style={isTR ? { background: '#e0f2fe', color: '#0369a1' } : {}}>
+                        {e.status}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'center' }}>{(e.pos || '').toUpperCase()}</td>
                     <td style={{ textAlign: 'center' }}>{(e.school || '').toUpperCase()}</td>
                     <td style={{ textAlign: 'center' }}>
