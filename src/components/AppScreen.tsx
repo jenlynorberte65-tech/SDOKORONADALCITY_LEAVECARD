@@ -1,135 +1,135 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
-import { Topbar, Sidebar } from '@/components/Navigation';
-import HomepagePage from '@/components/pages/HomepagePage';
-import PersonnelListPage from '@/components/pages/PersonnelListPage';
-import LeaveCardsPage from '@/components/pages/LeaveCardsPage';
-import SchoolAdminPage from '@/components/pages/SchoolAdminPage';
-import UserPage from '@/components/pages/UserPage';
-import NTCardPage from '@/components/pages/NTCardPage';
-import TCardPage from '@/components/pages/TCardPage';
+import LoginScreen from '@/components/LoginScreen';
+import AppScreen from '@/components/AppScreen';
 import { apiCall } from '@/lib/api';
-import type { Personnel } from '@/types';
 
-export default function AppScreen() {
+// ─────────────────────────────────────────────────────────────────────────────
+//  App.tsx — Root component
+//
+//  HOW SESSION RESTORE WORKS (and why it won't double-load):
+//
+//  - On fresh login: LoginScreen handles everything (dispatch + loadDB).
+//    It sets a module-level flag `justLoggedIn` so restoreSession() skips.
+//    This flag lives in JS memory only — it dies on page refresh. ✅
+//
+//  - On page refresh: flag is gone, restoreSession() reads sessionStorage
+//    and restores the session + reloads the DB normally. ✅
+//
+//  - On logout: sessionStorage is cleared, restoreSession() finds nothing. ✅
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Module-level flag — survives re-renders but resets on page refresh.
+// Set by LoginScreen, consumed once by restoreSession().
+export let justLoggedIn = false;
+export function setJustLoggedIn() { justLoggedIn = true; }
+
+export default function App() {
   const { state, dispatch } = useAppStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Prevents flash of login screen while session is being restored on refresh
+  const [restoring, setRestoring] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!sessionStorage.getItem('deped_session');
+  });
 
-  const isEmployee = state.role === 'employee';
-
-  function handleNavigate(page: string) {
-    dispatch({ type: 'SET_PAGE', payload: page as never });
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      if (raw) {
-        const s = JSON.parse(raw);
-        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, page }));
-      }
-    } catch { /* ignore */ }
-  }
-
-  function handleLogout() {
-    dispatch({ type: 'LOGOUT' });
-    sessionStorage.removeItem('deped_session');
-  }
-
-  // Opens a leave card — pre-fetches records if not already loaded, then navigates instantly
-  async function handleOpenCard(id: string) {
-    const emp = state.db.find(e => e.id === id) as Personnel | undefined;
-    const page = emp?.status === 'Teaching' ? 't' : 'nt';
-
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      if (raw) {
-        const s = JSON.parse(raw);
-        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: id, page }));
-      }
-    } catch { /* ignore */ }
-
-    dispatch({ type: 'SET_CUR_ID', payload: id });
-
-    if (!emp?.records || emp.records.length === 0) {
+  useEffect(() => {
+    async function restoreSession() {
       try {
-        const res = await apiCall('get_records', { employee_id: id }, 'GET');
-        if (res.ok && res.records) {
-          dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id, records: res.records } });
+        // ── Skip if LoginScreen just handled login this session ───────────
+        if (justLoggedIn) {
+          justLoggedIn = false;
+          setRestoring(false);
+          return;
         }
-      } catch { /* navigate anyway */ }
-    }
 
-    dispatch({ type: 'SET_PAGE', payload: page });
+        const raw = sessionStorage.getItem('deped_session');
+        if (!raw) { setRestoring(false); return; }
+        const s = JSON.parse(raw);
+
+        if (s.isSchoolAdmin && s.schoolAdminCfg) {
+          dispatch({
+            type: 'LOGIN_SCHOOL_ADMIN',
+            payload: {
+              name:    s.schoolAdminCfg.name,
+              loginId: s.schoolAdminCfg.id,
+              dbId:    s.schoolAdminCfg.dbId,
+            },
+          });
+          await loadDB();
+          const savedPage = s.page || 'home';
+          dispatch({ type: 'SET_PAGE', payload: savedPage as never });
+
+        } else if (s.isAdmin) {
+          dispatch({
+            type: 'LOGIN_ADMIN',
+            payload: {
+              name:      s.isEncoder ? 'Encoder' : 'Administrator',
+              loginId:   '',
+              isEncoder: s.isEncoder || false,
+            },
+          });
+          apiCall('get_admin_cfg', {}, 'GET').then(res => {
+            if (res.ok)
+              dispatch({
+                type: 'SET_ADMIN_CFG',
+                payload: {
+                  admin:   res.admin   ?? undefined,
+                  encoder: res.encoder ?? undefined,
+                },
+              });
+          });
+          await loadDB();
+          const page = s.page || 'home';
+          if ((page === 'nt' || page === 't') && s.curId) {
+            dispatch({ type: 'SET_CUR_ID', payload: s.curId });
+            const res = await apiCall('get_records', { employee_id: s.curId }, 'GET');
+            if (res.ok && res.records) {
+              dispatch({
+                type: 'SET_EMPLOYEE_RECORDS',
+                payload: { id: s.curId, records: res.records },
+              });
+            }
+          }
+          dispatch({ type: 'SET_PAGE', payload: page as never });
+
+        } else if (s.curId) {
+          dispatch({ type: 'LOGIN_EMPLOYEE', payload: { curId: s.curId } });
+          await loadDB();
+        }
+      } catch { /* ignore */ }
+      finally { setRestoring(false); }
+    }
+    restoreSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadDB() {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const res = await apiCall('get_personnel', {}, 'GET');
+    if (res.ok && res.data) dispatch({ type: 'SET_DB', payload: res.data });
+    dispatch({ type: 'SET_LOADING', payload: false });
   }
 
-  return (
-    <div id="s-app" className="screen active">
-      {/* Sidebar — hidden for employee */}
-      {!isEmployee && (
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          onNavigate={handleNavigate}
-          currentPage={state.page}
-        />
-      )}
-
-      {/* Topbar */}
-      <Topbar
-        onMenuClick={() => setSidebarOpen(true)}
-        showMenu={!isEmployee}
-        onLogout={handleLogout}
-        showLogoutBtn={isEmployee}
-      />
-
-      {/* Page content */}
-      <div className="ca">
-
-        {/* ── Admin / Encoder pages ───────────────────────────── */}
-        {(state.isAdmin || state.isEncoder) && (
-          <>
-            {/* Homepage — admin & encoder see leave stats */}
-            <div className={`page${state.page === 'home' ? ' on' : ''}`}>
-              <HomepagePage showLeaveStats={true} />
-            </div>
-            <div className={`page${state.page === 'list'  ? ' on' : ''}`}>
-              <PersonnelListPage onOpenCard={handleOpenCard} />
-            </div>
-            <div className={`page${state.page === 'cards' ? ' on' : ''}`}>
-              <LeaveCardsPage onOpenCard={handleOpenCard} />
-            </div>
-            <div className={`page${state.page === 'nt'    ? ' on' : ''}`}>
-              <NTCardPage onBack={() => handleNavigate('cards')} />
-            </div>
-            <div className={`page${state.page === 't'     ? ' on' : ''}`}>
-              <TCardPage onBack={() => handleNavigate('cards')} />
-            </div>
-          </>
-        )}
-
-        {/* ── School Admin pages ──────────────────────────────── */}
-        {state.isSchoolAdmin && (
-          <>
-            {/* Homepage — school admin does NOT see leave stats */}
-            <div className={`page${state.page === 'home' ? ' on' : ''}`}>
-              <HomepagePage showLeaveStats={false} />
-            </div>
-            <div className={`page${state.page === 'sa'   ? ' on' : ''}`}>
-              <SchoolAdminPage />
-            </div>
-          </>
-        )}
-
-        {/* ── Employee read-only view ─────────────────────────── */}
-        {isEmployee && (
-          <div className={`page${state.page === 'user' ? ' on' : ''}`}>
-            <UserPage onLogout={handleLogout} />
-          </div>
-        )}
+  // While restoring session on refresh, show a blank loading screen
+  // instead of flashing the login page
+  if (restoring) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#f4f6f8',
+        fontFamily: 'Inter, sans-serif', color: '#555', fontSize: 15,
+      }}>
+        ⏳ Restoring session…
       </div>
+    );
+  }
 
-      {/* Hidden print/PDF areas */}
-      <div id="printPageHeader" />
-      <div id="pdfArea" />
+  const loggedIn = state.isAdmin || state.isSchoolAdmin || state.role === 'employee';
+  return (
+    <div>
+      {!loggedIn && <LoginScreen />}
+      {loggedIn  && <AppScreen />}
     </div>
   );
 }
