@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall } from '@/lib/api';
+import { setJustLoggedIn } from '@/components/App';
 import type { Personnel } from '@/types';
 
 export default function LoginScreen() {
@@ -56,9 +57,9 @@ export default function LoginScreen() {
     sessionStorage.setItem('deped_session', JSON.stringify(data));
 
     // ── Tell App.tsx that LoginScreen already loaded the DB ───────────────
-    // This prevents App.tsx restoreSession() from firing a second
-    // get_personnel call and racing / overwriting our freshly loaded data.
-    sessionStorage.setItem('deped_just_logged_in', '1');
+    // Uses a module-level flag (not sessionStorage) so it only lives for
+    // this page load and does NOT survive a page refresh.
+    setJustLoggedIn();
   }
 
   return (
