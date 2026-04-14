@@ -5,11 +5,16 @@
 import { normaliseDate } from './db';
 import type { LeaveRecord } from '@/types';
 
+// Helper — matches both "Credit Entry" (new) and "From DENR Region 12" (old records)
+function isTransferAction(action: string): boolean {
+  const a = action.toLowerCase();
+  return a.includes('credit entry') || a.includes('from denr');
+}
+
 // ── JS record → DB row ────────────────────────────────────────
 export function recordToRow(r: LeaveRecord, empId: string, sortOrder: number): Record<string, unknown> {
   const isConv   = !!r._conversion;
-  const action   = (r.action || '').toLowerCase();
-  const isXfer   = action.includes('from denr');
+  const isXfer   = isTransferAction(r.action || '');
 
   const setAEarned = r.setA_earned !== undefined ? r.setA_earned
                    : isXfer ? (r.trV || 0) : 0;
@@ -46,10 +51,10 @@ export function recordToRow(r: LeaveRecord, empId: string, sortOrder: number): R
 
 // ── DB row → JS record ────────────────────────────────────────
 export function rowToRecord(row: Record<string, unknown>): LeaveRecord {
-  const action  = String(row.action ?? '').toLowerCase();
-  const isMon   = action.includes('monetization') && !action.includes('disapproved');
-  const isMD    = action.includes('monetization') &&  action.includes('disapproved');
-  const isXfer  = action.includes('from denr');
+  const action  = String(row.action ?? '');
+  const isMon   = action.toLowerCase().includes('monetization') && !action.toLowerCase().includes('disapproved');
+  const isMD    = action.toLowerCase().includes('monetization') &&  action.toLowerCase().includes('disapproved');
+  const isXfer  = isTransferAction(action);
 
   const setAE = Number(row.setA_earned ?? 0);
   const setBE = Number(row.setB_earned ?? 0);
