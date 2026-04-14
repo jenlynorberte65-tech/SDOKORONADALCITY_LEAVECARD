@@ -69,6 +69,11 @@ export function classifyLeave(act: string): LeaveClassification {
 }
 
 // ── Calculate weekday count between from/to ──────────────────
+// Supports fromPeriod / toPeriod:
+//   'AM' or 'PM' on the same date           → 0.5 days
+//   'AM' or 'PM' on the start date          → subtract 0.5 from total
+//   'AM' or 'PM' on the end date            → subtract 0.5 from total
+//   'WD' (Whole Day) or undefined           → full day (no deduction)
 export function calcDays(r: LeaveRecord): number {
   const a = (r.action || '').toLowerCase();
   const isForceAction = (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved');
@@ -77,6 +82,17 @@ export function calcDays(r: LeaveRecord): number {
   if ((isForceAction || isForceDis) && r.forceAmount > 0) return r.forceAmount;
 
   if (r.from && r.to) {
+    const startHalf = r.fromPeriod === 'AM' || r.fromPeriod === 'PM';
+    const endHalf   = r.toPeriod   === 'AM' || r.toPeriod   === 'PM';
+
+    // Same date + half-day period selected → 0.5 days (if it's a weekday)
+    if (r.from === r.to && startHalf) {
+      const d   = new Date(r.from + 'T00:00:00');
+      const day = d.getDay();
+      return (day !== 0 && day !== 6) ? 0.5 : 0;
+    }
+
+    // Count full weekdays in range
     let count = 0;
     const start = new Date(r.from + 'T00:00:00');
     const end   = new Date(r.to   + 'T00:00:00');
@@ -85,6 +101,12 @@ export function calcDays(r: LeaveRecord): number {
       const day = d.getDay();
       if (day !== 0 && day !== 6) count++;
     }
+
+    // Deduct 0.5 for each half-day endpoint
+    if (startHalf) count -= 0.5;
+    if (endHalf)   count -= 0.5;
+    if (count < 0) count = 0;
+
     return count;
   }
   return 0;
