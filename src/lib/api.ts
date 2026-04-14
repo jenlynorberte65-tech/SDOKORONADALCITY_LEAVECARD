@@ -44,6 +44,7 @@ export async function apiCall<T = Record<string, unknown>>(
 }
 
 // ── Leave Classification ─────────────────────────────────────
+// isTransfer matches both new "credit entry" and old "from denr" for backward compatibility
 export function classifyLeave(act: string): LeaveClassification {
   const a = act.toLowerCase();
   const isForceDis = (a.includes('force') || a.includes('mandatory')) && a.includes('disapproved');
@@ -56,7 +57,8 @@ export function classifyLeave(act: string): LeaveClassification {
     isSick:      a.includes('sick'),
     isForce:     (a.includes('force') || a.includes('mandatory')) && !a.includes('disapproved'),
     isPer:       a.includes('personal'),
-    isTransfer:  a.includes('from denr'),
+    // Matches "Credit Entry" (new) and "From DENR Region 12" (old records)
+    isTransfer:  a.includes('credit entry') || a.includes('from denr'),
     isTerminal:  a.includes('terminal'),
     isSetB_noDeduct: a.includes('maternity') || a.includes('paternity'),
     isSetA_noDeduct: a.includes('solo parent') || a.includes('wellness') ||
@@ -246,11 +248,11 @@ export function computeRowBalanceUpdates(
         let rowAEarned = 0, rowAAbsWP = 0, rowAWOP = 0;
         let rowBEarned = 0, rowBAbsWP = 0, rowBWOP = 0;
 
-        if (C.isTransfer)                        { rowAEarned = r.trV || 0; bal += rowAEarned; }
+        if (C.isTransfer)                             { rowAEarned = r.trV || 0; bal += rowAEarned; }
         else if (r.earned > 0 && !C.isMon && !C.isPer) { rowAEarned = r.earned; bal += rowAEarned; }
-        else if (C.isMD)                         { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
-        else if (C.isForceDis)                   { const d = calcDays(r); rowAAbsWP = d; bal += d; }
-        else if (C.isMon)                        { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
+        else if (C.isMD)                              { bal += r.monDisAmt || 0; rowAAbsWP = r.monDisAmt || 0; }
+        else if (C.isForceDis)                        { const d = calcDays(r); rowAAbsWP = d; bal += d; }
+        else if (C.isMon)                             { const m = r.monAmount || 0; if (bal >= m) { rowAAbsWP = m; bal -= m; } else { rowAAbsWP = bal; rowAWOP = m - bal; bal = 0; } }
         else if (!C.isDis) {
           const days = calcDays(r);
           if (days > 0) {
