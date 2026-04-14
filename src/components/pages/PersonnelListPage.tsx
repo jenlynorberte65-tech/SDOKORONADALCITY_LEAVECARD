@@ -31,9 +31,10 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const schools   = useMemo(() => [...new Set(all.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
 
   const monthLabel       = currentMonthLabel();
-  const teachingCount        = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
-  const nonTeachingCount     = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length;
-  const teachingRelatedCount = activeOnly.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length;
+ // ✅ After — counts ALL employees (active + inactive)
+const teachingCount        = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
+const nonTeachingCount     = all.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length;
+const teachingRelatedCount = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length;
 
   // ✅ FIX: pass lastEditedAt so the primary check in isCardUpdatedThisMonth works
   const updatedCount    = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length;
@@ -87,9 +88,9 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
     <>
       {/* ── Dashboard Stats ── */}
       <div className="stats-row no-print">
-        <StatBox icon="👥" iconClass="si-g"
-          value={activeOnly.length}
-          label="Active Personnel" />
+       <StatBox icon="👥" 
+         value={all.length} 
+         label="Total Personnel" />
         <StatBox icon="📚" iconClass="si-b"
           value={teachingCount}
           label="Teaching" />
