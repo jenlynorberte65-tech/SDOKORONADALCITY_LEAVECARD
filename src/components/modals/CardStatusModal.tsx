@@ -1,12 +1,12 @@
 'use client';
 import { useAppStore } from '@/hooks/useAppStore';
-import { isUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
+import { isCardUpdatedThisMonth } from '@/components/StatsRow';
 
 export default function CardStatusModal({ onClose }: { onClose: () => void }) {
   const { state } = useAppStore();
   const monthLabel = currentMonthLabel();
-  const active = state.db.filter(e => !e.archived).sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
-  const upd  = active.filter(e => isUpdatedThisMonth(e.lastEditedAt));
+  const active = state.db.filter(e => e.account_status !== 'inactive').sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
+  const upd = active.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt));
   const nupd = active.filter(e => !isUpdatedThisMonth(e.lastEditedAt));
 
   return (
