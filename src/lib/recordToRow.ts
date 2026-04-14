@@ -23,6 +23,9 @@ export function recordToRow(r: LeaveRecord, empId: string, sortOrder: number): R
     prd:             isConv ? '' : (r.prd ?? ''),
     from_date:       normaliseDate(r.from ?? ''),
     to_date:         normaliseDate(r.to   ?? ''),
+    // Matches exact DB column names from ALTER TABLE
+    fromPeriod:      r.fromPeriod ?? 'WD',
+    toPeriod:        r.toPeriod   ?? 'WD',
     spec:            r.spec   ?? '',
     action:          r.action ?? '',
     force_amount:    r.forceAmount ?? 0,
@@ -53,12 +56,19 @@ export function rowToRecord(row: Record<string, unknown>): LeaveRecord {
   const setAA = Number(row.setA_abs_wp ?? 0);
   const setBA = Number(row.setB_abs_wp ?? 0);
 
+  // Read from exact DB column names — fallback to 'WD' for any NULL rows
+  const rawFromPeriod = String(row.fromPeriod ?? 'WD').toUpperCase();
+  const rawToPeriod   = String(row.toPeriod   ?? 'WD').toUpperCase();
+  const fromPeriod = (rawFromPeriod === 'AM' || rawFromPeriod === 'PM') ? rawFromPeriod : 'WD';
+  const toPeriod   = (rawToPeriod   === 'AM' || rawToPeriod   === 'PM') ? rawToPeriod   : 'WD';
+
   const r: LeaveRecord = {
     so:          String(row.so    ?? ''),
     prd:         String(row.prd   ?? ''),
-    // REPLACE WITH:
     from:        row.from_date ? (row.from_date instanceof Date ? row.from_date.toISOString().slice(0,10) : String(row.from_date).slice(0,10)) : '',
     to:          row.to_date   ? (row.to_date   instanceof Date ? row.to_date.toISOString().slice(0,10)   : String(row.to_date).slice(0,10))   : '',
+    fromPeriod:  fromPeriod as 'AM' | 'PM' | 'WD',
+    toPeriod:    toPeriod   as 'AM' | 'PM' | 'WD',
     spec:        String(row.spec  ?? ''),
     action:      String(row.action ?? ''),
     forceAmount: Number(row.force_amount ?? 0),
