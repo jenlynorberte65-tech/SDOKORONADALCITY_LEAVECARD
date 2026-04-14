@@ -30,13 +30,16 @@ export interface SessionState {
   schoolAdminCfg: SchoolAdminConfig;
 }
 export interface LeaveRecord {
-   _record_id?: number;
+  _record_id?: number;
   _conversion?: boolean;
   sort_order?: number;
   so: string;
   prd: string;
   from: string;
   to: string;
+  // AM = morning half-day, PM = afternoon half-day, WD = whole day (default)
+  fromPeriod?: 'AM' | 'PM' | 'WD';
+  toPeriod?:   'AM' | 'PM' | 'WD';
   spec: string;
   action: string;
   earned: number;
@@ -87,7 +90,7 @@ export interface Personnel {
   pexam: string;
   dexam: string;
   appt: string;
-  status: 'Teaching' | 'Non-Teaching'| 'Teaching Related';
+  status: 'Teaching' | 'Non-Teaching' | 'Teaching Related';
   account_status: 'active' | 'inactive';
   pos: string;
   school: string;
