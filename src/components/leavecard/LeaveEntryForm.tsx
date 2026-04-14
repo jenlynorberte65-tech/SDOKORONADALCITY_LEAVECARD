@@ -12,7 +12,7 @@ const KNOWN_ACTIONS = [
   'Special Leave Benefits for Women (Magna Carta)',
   'Violence Against Women and Children (VAWC) Leave','Terminal Leave',
   'Monetization','Monetization (disapproved)','Force Leave (disapproved)',
-  'From DENR Region 12',
+  'Credit Entry',
 ];
 
 interface Props {
