@@ -99,7 +99,7 @@ export default function AppScreen() {
         showMenu={!isEmployee}
         onLogout={handleLogout}
         showLogoutBtn={isEmployee}
-        showSettings={state.isAdmin}
+        showSettings={state.isAdmin && !state.isEncoder}
         onSettingsClick={() => setShowAccounts(true)}
       />
 
