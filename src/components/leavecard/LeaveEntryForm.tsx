@@ -25,6 +25,47 @@ interface Props {
   onCancelEdit?: () => void;
 }
 
+// ── Period selector pill styles ───────────────────────────────
+function PeriodSelector({
+  value,
+  onChange,
+}: {
+  value: 'AM' | 'PM' | 'WD';
+  onChange: (v: 'AM' | 'PM' | 'WD') => void;
+}) {
+  const options: { key: 'AM' | 'PM' | 'WD'; label: string }[] = [
+    { key: 'AM', label: 'AM' },
+    { key: 'PM', label: 'PM' },
+    { key: 'WD', label: 'Whole Day' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
+      {options.map(({ key, label }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          style={{
+            flex: 1,
+            height: 26,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            border: '1.5px solid var(--br)',
+            borderRadius: 6,
+            background: value === key ? 'var(--pri)' : 'white',
+            color:      value === key ? 'white'      : 'var(--cha)',
+            transition: 'background 0.15s, color 0.15s',
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, editRecord, onSaved, onCancelEdit }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === empId) as Personnel | undefined;
@@ -35,6 +76,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const [toText, setToText] = useState(editRecord?.to   ? isoToDisplay(editRecord.to)   : '');
   const [frPick, setFrPick] = useState(editRecord?.from || '');
   const [toPick, setToPick] = useState(editRecord?.to   || '');
+  // AM / PM / WD period selection for each date
+  const [frPeriod, setFrPeriod] = useState<'AM' | 'PM' | 'WD'>(editRecord?.fromPeriod || 'WD');
+  const [toPeriod, setToPeriod] = useState<'AM' | 'PM' | 'WD'>(editRecord?.toPeriod   || 'WD');
   const [action, setAction] = useState(editRecord?.action || '');
   const [note, setNote]     = useState('');
   const [earned, setEarned] = useState(editRecord?.earned ? String(editRecord.earned) : '');
@@ -64,6 +108,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       setToText(isoToDisplay(editRecord.to || ''));
       setFrPick(editRecord.from || '');
       setToPick(editRecord.to || '');
+      setFrPeriod(editRecord.fromPeriod || 'WD');
+      setToPeriod(editRecord.toPeriod   || 'WD');
       setAction(editRecord.action || '');
       setEarned(editRecord.setA_earned ? String(editRecord.setA_earned) : '');
       setForce(editRecord.forceAmount ? String(editRecord.forceAmount) : '');
@@ -77,7 +123,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       setTrS(editRecord.trS ? String(editRecord.trS) : '');
     } else {
       setSo(''); setPrd(''); setFrText(''); setToText('');
-      setFrPick(''); setToPick(''); setAction(''); setEarned('');
+      setFrPick(''); setToPick('');
+      setFrPeriod('WD'); setToPeriod('WD');
+      setAction(''); setEarned('');
       setForce(''); setMonV(''); setMonS(''); setMonDV(''); setMonDS('');
       setMonAmt(''); setMonDis(''); setTrV(''); setTrS('');
     }
@@ -131,6 +179,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
       so, prd,
       from: toISODate(frText) || frPick,
       to:   toISODate(toText) || toPick,
+      // Persist the period selections so calcDays is accurate on reload/edit
+      fromPeriod: frPeriod,
+      toPeriod:   toPeriod,
       spec: '',
       action: av,
       earned:      parseFloat(earned) || 0,
@@ -168,7 +219,9 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
     await Promise.all(updates.map(u => apiCall('save_row_balance', u)));
 
     setSaving(false);
+    // Reset all fields including periods
     setSo(''); setPrd(''); setFrText(''); setToText(''); setFrPick(''); setToPick('');
+    setFrPeriod('WD'); setToPeriod('WD');
     setAction(''); setNote(''); setEarned(''); setForce('');
     setMonV(''); setMonS(''); setMonDV(''); setMonDS(''); setMonAmt(''); setMonDis('');
     setTrV(''); setTrS('');
@@ -180,42 +233,97 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   return (
     <div>
       <div className="ig" style={{ marginBottom: 14 }}>
+
+        {/* Special Order # */}
         <div className="f">
           <label>Special Order #</label>
           <input type="text" style={inputH} value={so} onChange={e => setSo(e.target.value)} />
         </div>
+
+        {/* Period Covered */}
         <div className="f">
           <label>Period Covered</label>
           <input type="text" style={inputH} value={prd} onChange={e => setPrd(e.target.value)} />
         </div>
+
+        {/* ── Date From ──────────────────────────────────────── */}
         <div className="f">
           <label>Date From</label>
+          {/* Date text + calendar picker row */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-              value={frText} onChange={e => handleFromText(e.target.value)} />
+            <input
+              type="text"
+              style={{ ...inputH, flex: 1 }}
+              placeholder="mm/dd/yyyy"
+              maxLength={10}
+              value={frText}
+              onChange={e => handleFromText(e.target.value)}
+            />
             <div style={{ position: 'relative', flexShrink: 0 }}>
-          <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>📅</button>
-              <input type="date" value={frPick}
+              <button
+                type="button"
+                style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}
+              >
+                📅
+              </button>
+              <input
+                type="date"
+                value={frPick}
                 onChange={e => handleFromChange(e.target.value)}
-                  onInput={e => { if (!(e.target as HTMLInputElement).value) { setFrPick(''); setFrText(''); } }}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+                onInput={e => { if (!(e.target as HTMLInputElement).value) { setFrPick(''); setFrText(''); } }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }}
+              />
             </div>
           </div>
+          {/* AM / PM / Whole Day selector */}
+          <PeriodSelector value={frPeriod} onChange={setFrPeriod} />
+          {(frPeriod === 'AM' || frPeriod === 'PM') && (
+            <span style={{ fontSize: 10, color: 'var(--au)', marginTop: 3, display: 'block' }}>
+              ½ day ({frPeriod}) — counts as 0.5
+            </span>
+          )}
         </div>
+
+        {/* ── Date To ────────────────────────────────────────── */}
         <div className="f">
           <label>Date To</label>
+          {/* Date text + calendar picker row */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <input type="text" style={{ ...inputH, flex: 1 }} placeholder="mm/dd/yyyy" maxLength={10}
-              value={toText} onChange={e => handleToText(e.target.value)} />
+            <input
+              type="text"
+              style={{ ...inputH, flex: 1 }}
+              placeholder="mm/dd/yyyy"
+              maxLength={10}
+              value={toText}
+              onChange={e => handleToText(e.target.value)}
+            />
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <button type="button" style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📅</button>
-              <input type="date" value={toPick} min={frPick}
-              onChange={e => handleToChange(e.target.value)}
-              onInput={e => { if (!(e.target as HTMLInputElement).value) { setToPick(''); setToText(''); } }}
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }} />
+              <button
+                type="button"
+                style={{ height: 'var(--H)', width: 34, border: '1.5px solid var(--br)', borderRadius: 7, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                📅
+              </button>
+              <input
+                type="date"
+                value={toPick}
+                min={frPick}
+                onChange={e => handleToChange(e.target.value)}
+                onInput={e => { if (!(e.target as HTMLInputElement).value) { setToPick(''); setToText(''); } }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2, border: 'none', padding: 0, margin: 0 }}
+              />
             </div>
           </div>
+          {/* AM / PM / Whole Day selector */}
+          <PeriodSelector value={toPeriod} onChange={setToPeriod} />
+          {(toPeriod === 'AM' || toPeriod === 'PM') && (
+            <span style={{ fontSize: 10, color: 'var(--au)', marginTop: 3, display: 'block' }}>
+              ½ day ({toPeriod}) — counts as 0.5
+            </span>
+          )}
         </div>
+
+        {/* Nature of Action */}
         <div className="f">
           <label>Nature of Action</label>
           <input list="leaveActionList" style={inputH} value={action}
@@ -224,16 +332,22 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
             {KNOWN_ACTIONS.map(a => <option key={a} value={a} />)}
           </datalist>
         </div>
+
+        {/* Additional Note */}
         <div className="f">
           <label>Additional Note</label>
           <input type="text" style={inputH} value={note}
             onChange={e => setNote(e.target.value)} placeholder="e.g. per CSC MC No. 14" />
         </div>
+
+        {/* Value Earned */}
         <div className="f">
           <label>Value Earned</label>
           <input type="number" style={inputH} step="0.001" value={earned}
             onChange={e => setEarned(e.target.value)} />
         </div>
+
+        {/* Force / Mandatory Leave days field */}
         {(() => {
           const al = action.toLowerCase();
           const isForceAction = (al.includes('force') || al.includes('mandatory')) && !al.includes('disapproved');
@@ -256,6 +370,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         })()}
       </div>
 
+      {/* Monetization section */}
       {isMon && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">💰 Monetization — Deduct Amounts</div>
@@ -270,6 +385,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         </div>
       )}
 
+      {/* Monetization Disapproved section */}
       {isMD && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔄 Monetization (Disapproved) — Add Back</div>
@@ -284,6 +400,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         </div>
       )}
 
+      {/* Transfer from DENR section */}
       {isTr && (
         <div style={{ marginBottom: 14 }}>
           <div className="sdiv">🔁 Transfer Balance — Initial Credits from Other Organization</div>
@@ -302,6 +419,7 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         </div>
       )}
 
+      {/* Action buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
         {editIdx > -1 && <button className="btn b-slt" onClick={onCancelEdit}>✕ Cancel</button>}
         <button className="btn b-pri" onClick={handleSave} disabled={saving}>
