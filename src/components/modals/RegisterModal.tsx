@@ -40,46 +40,69 @@ const SCHOOL_OPTIONS: string[] = [
   'Dungan Lahek ES',
   'El Gawel ES',
   'Engkong ES',
-'Esimos Cataluña ES',
-'Esperanza ES',
-'Flaviano T. Deocampo, Sr. ES',
-'Guadalupe ES',
-'Imba Primary School',
-'Kakub ES',
-'Koronadal Central I ES',
-'Koronadal Central II ES',
-'Lasang ES',
-'Mabini ES',
-'Magsaysay ES',
-'Mama Mapambukol PS',
-'Mambucal ES',
-'Mangga ES',
-'Manuel Dondiego ES',
-'Marbel 1 CES',
-'Marbel 3 ES',
-'Marbel 4 ES',
-'Marbel 5 CES',
-'Marbel 6 ES',
-'Marbel 7 CES',
-'Marbel 8 ES',
-'Mariano Villegas ES',
-'Matulas ES',
-'Morales ES',
-'Namnama ES',
-'Nelmida ES',
-'Olu-mlao ES',
-'Osita CES',
-'Rotonda ES',
-'Sabino ES',
-'Salkan ES',
-'San Roque ES',
-'Siodina ES',
-'Siok ES',
-'Sto. Nino ES',
-'Supon ES',
+  'Esimos Cataluña ES',
+  'Esperanza ES',
+  'Flaviano T. Deocampo, Sr. ES',
+  'Guadalupe ES',
+  'Imba Primary School',
+  'Kakub ES',
+  'Koronadal Central I ES',
+  'Koronadal Central II ES',
+  'Lasang ES',
+  'Mabini ES',
+  'Magsaysay ES',
+  'Mama Mapambukol PS',
+  'Mambucal ES',
+  'Mangga ES',
+  'Manuel Dondiego ES',
+  'Marbel 1 CES',
+  'Marbel 3 ES',
+  'Marbel 4 ES',
+  'Marbel 5 CES',
+  'Marbel 6 ES',
+  'Marbel 7 CES',
+  'Marbel 8 ES',
+  'Mariano Villegas ES',
+  'Matulas ES',
+  'Morales ES',
+  'Namnama ES',
+  'Nelmida ES',
+  'Olu-mlao ES',
+  'Osita CES',
+  'Rotonda ES',
+  'Sabino ES',
+  'Salkan ES',
+  'San Roque ES',
+  'Siodina ES',
+  'Siok ES',
+  'Sto. Nino ES',
+  'Supon ES',
 ];
 
+// ── Strip ISO timestamp suffix, leaving only the date portion ────────────────
+// Handles: "1964-02-04T00:00:00.000Z" → "1964-02-04"
+//          "1993-08-16T00:00:00.000Z" → "1993-08-16"
+//          "mm/dd/yyyy" or "" → unchanged
+function cleanDate(val: string | undefined | null): string {
+  if (!val) return '';
+  // If it's an ISO string with a T, take only the date part
+  if (val.includes('T')) return val.split('T')[0];
+  return val;
+}
 
+// Convert "yyyy-mm-dd" to "mm/dd/yyyy" for display in the masked input
+function isoToMmDdYyyy(val: string): string {
+  const clean = cleanDate(val);
+  if (!clean) return '';
+  // Already mm/dd/yyyy
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) return clean;
+  // yyyy-mm-dd → mm/dd/yyyy
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [yyyy, mm, dd] = clean.split('-');
+    return `${mm}/${dd}/${yyyy}`;
+  }
+  return clean;
+}
 
 export default function RegisterModal({ employee, onClose, onSaved }: Props) {
   const { state } = useAppStore();
@@ -101,7 +124,8 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         maternal:       employee.maternal       ?? '',
         sex:            employee.sex            ?? '',
         civil:          employee.civil          ?? '',
-        dob:            employee.dob            ?? '',
+        // ✅ FIX: strip ISO timestamp and convert to mm/dd/yyyy for date fields
+        dob:            isoToMmDdYyyy(employee.dob),
         pob:            employee.pob            ?? '',
         addr:           employee.addr           ?? '',
         spouse:         employee.spouse         ?? '',
@@ -110,8 +134,8 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         rating:         employee.rating         ?? '',
         tin:            employee.tin            ?? '',
         pexam:          employee.pexam          ?? '',
-        dexam:          employee.dexam          ?? '',
-        appt:           employee.appt           ?? '',
+        dexam:          isoToMmDdYyyy(employee.dexam),
+        appt:           isoToMmDdYyyy(employee.appt),
         status:         employee.status         ?? 'Teaching',
         account_status: employee.account_status ?? 'active',
         pos:            employee.pos            ?? '',
@@ -477,10 +501,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
                 placeholder="Select or type school/office…"
                 style={{ height:'var(--H)',padding:'0 12px',border:'1.5px solid var(--br)',borderRadius:7,fontSize:12,width:'100%',background:'white',color:'var(--cha)',fontFamily:'Inter,sans-serif' }}
               />
-              {/* ─────────────────────────────────────────────────────────
-                  ✏️  To edit the school list, update SCHOOL_OPTIONS
-                      at the TOP of this file (around line 27).
-                  ───────────────────────────────────────────────────────── */}
               <datalist id="schoolList">
                 {SCHOOL_OPTIONS.map(s => <option key={s} value={s} />)}
               </datalist>
