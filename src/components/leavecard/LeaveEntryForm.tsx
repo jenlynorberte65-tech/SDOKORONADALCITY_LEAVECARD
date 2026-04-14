@@ -134,7 +134,8 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
   const al    = action.toLowerCase();
   const isMon = al.includes('monetization') && !al.includes('disapproved');
   const isMD  = al.includes('monetization') &&  al.includes('disapproved');
-  const isTr  = al.includes('from denr');
+  // "Credit Entry" replaces "From DENR Region 12" — match both for backward compat with old records
+  const isTr  = al.includes('credit entry') || al.includes('from denr');
 
   function handleFromChange(iso: string) {
     setFrPick(iso);
@@ -249,7 +250,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         {/* ── Date From ──────────────────────────────────────── */}
         <div className="f">
           <label>Date From</label>
-          {/* Date text + calendar picker row */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <input
               type="text"
@@ -287,7 +287,6 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         {/* ── Date To ────────────────────────────────────────── */}
         <div className="f">
           <label>Date To</label>
-          {/* Date text + calendar picker row */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <input
               type="text"
@@ -400,10 +399,10 @@ export function LeaveEntryForm({ empId, empStatus, empRecords, editIdx = -1, edi
         </div>
       )}
 
-      {/* Transfer from DENR section */}
+      {/* Credit Entry section (formerly "Transfer from DENR") */}
       {isTr && (
         <div style={{ marginBottom: 14 }}>
-          <div className="sdiv">🔁 Transfer Balance — Initial Credits from Other Organization</div>
+          <div className="sdiv">🔁 Credit Entry — Initial Balance Transfer</div>
           <div className="ig">
             <div className="f hl">
               <label>Vacation Col Balance{empStatus === 'Teaching' ? ' / Balance (T)' : ''}</label>
