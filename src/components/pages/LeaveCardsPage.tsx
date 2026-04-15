@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { isCardUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
 import {
@@ -98,13 +98,35 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
 
   const closeModal = useCallback(() => setModal(m => ({ ...m, open: false })), []);
 
+  // ── Pre-load all employee records on mount ─────────────────
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    const loadAll = async () => {
+      for (const e of state.db) {
+        if (e.records && e.records.length > 0) continue; // already loaded
+        try {
+          const res = await apiCall('get_records', { employee_id: e.id }, 'GET');
+          if (res.ok) {
+            const records = res.records || [];
+            dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: e.id, records } });
+          }
+        } catch { /* silent — badge will just stay pending */ }
+      }
+    };
+
+    loadAll();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const monthLabel   = currentMonthLabel();
   const accrualKey   = getNTAccrualKey();
   const mandatoryKey = getMandatoryLeaveKey();
   const currentYear  = new Date().getFullYear();
   const currentMonth = new Date().getMonth(); // 0-indexed; 11 = December
-const isDecember = currentMonth === 11;
-  
+  const isDecember   = true; // TODO: revert to: currentMonth === 11
+
   // ── LocalStorage state ────────────────────────────────────
   const accrualDone = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -211,7 +233,6 @@ const isDecember = currentMonth === 11;
 
   // ── Mandatory Leave (ALL active employees, skip if force leave already exists) ──
   async function runMandatoryLeaveDeduction() {
-    // ALL active employees regardless of category
     const allActive = state.db.filter(e => e.account_status !== 'inactive');
     if (allActive.length === 0) { alert('No active employees found.'); return; }
 
@@ -224,14 +245,12 @@ const isDecember = currentMonth === 11;
 
     for (const e of allActive) {
       try {
-        // Fetch records if not loaded
         let records = e.records;
         if (!records || records.length === 0) {
           const res = await apiCall('get_records', { employee_id: e.id }, 'GET');
           if (res.ok) { records = res.records || []; dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: e.id, records } }); }
         }
 
-        // ── Skip if employee already has Force/Mandatory Leave for this year ──
         const hasForceLeaveThisYear = (records || []).some(r => {
           if (r._conversion) return false;
           const C = classifyLeave(r.action || '');
@@ -293,7 +312,6 @@ const isDecember = currentMonth === 11;
 
     const allActive = state.db.filter(e => e.account_status !== 'inactive');
 
-    // Pre-compute how many will be skipped (based on already-loaded records)
     const alreadyHaveForce = allActive.filter(e =>
       (e.records || []).some(r => {
         if (r._conversion) return false;
