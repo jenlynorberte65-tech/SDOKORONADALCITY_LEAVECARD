@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { isCardUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
 
@@ -8,13 +8,16 @@ const JANICE_PHOTO = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUND
 
 interface Props {
   showLeaveStats?: boolean;
+  onOpenCard?: (id: string) => void;
 }
 
-export default function HomepagePage({ showLeaveStats = true }: Props) {
+export default function HomepagePage({ showLeaveStats = true, onOpenCard }: Props) {
   const { state } = useAppStore();
   const aboutRef = useRef<HTMLDivElement>(null);
 
-  // ✅ FIX: use ALL employees for total/category counts (including inactive)
+  // Track which panel is open: 'updated' | 'pending' | null
+  const [openPanel, setOpenPanel] = useState<'updated' | 'pending' | null>(null);
+
   const all             = useMemo(() => state.db, [state.db]);
   const active          = useMemo(() => state.db.filter(e => e.account_status !== 'inactive'), [state.db]);
 
@@ -22,11 +25,25 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
   const nonTeaching     = useMemo(() => all.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length, [all]);
   const teachingRelated = useMemo(() => all.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length, [all]);
 
-  // updated/pending still uses active only (inactive shouldn't affect card status)
-  const updatedCount = useMemo(() =>
-    active.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length,
-  [active]);
-  const pendingCount = active.length - updatedCount;
+  // Split active employees into updated / pending lists
+  const { updatedList, pendingList } = useMemo(() => {
+    const updated: typeof active = [];
+    const pending: typeof active = [];
+    for (const e of active) {
+      if (isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)) {
+        updated.push(e);
+      } else {
+        pending.push(e);
+      }
+    }
+    // Sort both lists alphabetically by surname
+    const sort = (arr: typeof active) =>
+      [...arr].sort((a, b) => (a.surname ?? '').localeCompare(b.surname ?? ''));
+    return { updatedList: sort(updated), pendingList: sort(pending) };
+  }, [active]);
+
+  const updatedCount = updatedList.length;
+  const pendingCount = pendingList.length;
   const monthLabel   = currentMonthLabel();
 
   useEffect(() => {
@@ -47,6 +64,14 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
     state.role === 'admin'        ? (state.adminCfg.name       || 'Administrator') :
     state.role === 'encoder'      ? (state.encoderCfg.name     || 'Encoder')       :
     state.role === 'school_admin' ? (state.schoolAdminCfg.name || 'School Admin')  : 'User';
+
+  function handleEmployeeClick(id: string) {
+    if (onOpenCard) onOpenCard(id);
+  }
+
+  function togglePanel(panel: 'updated' | 'pending') {
+    setOpenPanel(prev => prev === panel ? null : panel);
+  }
 
   return (
     <div style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
@@ -101,18 +126,152 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
       <div style={{
         display: 'grid',
         gridTemplateColumns: showLeaveStats ? 'repeat(auto-fit, minmax(170px, 1fr))' : 'repeat(4, 1fr)',
-        gap: 16, marginBottom: 28,
+        gap: 16, marginBottom: showLeaveStats && openPanel ? 0 : 28,
       }}>
-        {/* ✅ FIX: Total Encoded now uses all.length to include inactive */}
-        <StatCard icon="👥" value={all.length}        label="Total Encoded"    color="#7f1d1d" bg="#fff0f0" delay={0}   />
-        <StatCard icon="📚" value={teaching}           label="Teaching"         color="#991b1b" bg="#fee2e2" delay={80}  />
-        <StatCard icon="🏢" value={nonTeaching}        label="Non-Teaching"     color="#6b1a1a" bg="#fecaca" delay={160} />
-        <StatCard icon="🎓" value={teachingRelated}    label="Teaching Related" color="#1e40af" bg="#dbeafe" delay={240} />
+        <StatCard icon="👥" value={all.length}     label="Total Encoded"    color="#7f1d1d" bg="#fff0f0" delay={0}   />
+        <StatCard icon="📚" value={teaching}        label="Teaching"         color="#991b1b" bg="#fee2e2" delay={80}  />
+        <StatCard icon="🏢" value={nonTeaching}     label="Non-Teaching"     color="#6b1a1a" bg="#fecaca" delay={160} />
+        <StatCard icon="🎓" value={teachingRelated} label="Teaching Related" color="#1e40af" bg="#dbeafe" delay={240} />
+
         {showLeaveStats && <>
-          <StatCard icon="✅" value={updatedCount} label={`Updated (${monthLabel})`} color="#7f1d1d" bg="#ffe4e6" delay={320} />
-          <StatCard icon="⏳" value={pendingCount} label="Not Yet Updated"               color="#991b1b" bg="#fee2e2" delay={400} />
+          {/* Clickable Updated card */}
+          <StatCard
+            icon="✅"
+            value={updatedCount}
+            label={`Updated (${monthLabel})`}
+            color="#065f46"
+            bg="#d1fae5"
+            delay={320}
+            active={openPanel === 'updated'}
+            onClick={() => togglePanel('updated')}
+            clickable
+          />
+          {/* Clickable Pending card */}
+          <StatCard
+            icon="⏳"
+            value={pendingCount}
+            label="Not Yet Updated"
+            color="#991b1b"
+            bg="#fee2e2"
+            delay={400}
+            active={openPanel === 'pending'}
+            onClick={() => togglePanel('pending')}
+            clickable
+          />
         </>}
       </div>
+
+      {/* ── Expandable Employee Panels ───────────────────────── */}
+      {showLeaveStats && openPanel && (
+        <div style={{
+          marginBottom: 28,
+          borderRadius: 14,
+          border: `2px solid ${openPanel === 'updated' ? '#6ee7b7' : '#fca5a5'}`,
+          overflow: 'hidden',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+          animation: 'fadeSlideIn 0.22s ease',
+        }}>
+          {/* Panel header */}
+          <div style={{
+            padding: '14px 20px',
+            background: openPanel === 'updated'
+              ? 'linear-gradient(90deg,#065f46,#047857)'
+              : 'linear-gradient(90deg,#7f1d1d,#991b1b)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+              {openPanel === 'updated'
+                ? `✅ Updated — ${monthLabel} (${updatedCount} employee${updatedCount !== 1 ? 's' : ''})`
+                : `⏳ Not Yet Updated — ${monthLabel} (${pendingCount} employee${pendingCount !== 1 ? 's' : ''})`}
+            </span>
+            <button
+              onClick={() => setOpenPanel(null)}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none',
+                color: '#fff', borderRadius: 6, padding: '4px 10px',
+                cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              }}
+            >✕ Close</button>
+          </div>
+
+          {/* Employee list */}
+          <div style={{
+            background: '#fff',
+            maxHeight: 340,
+            overflowY: 'auto',
+            padding: '10px 16px',
+          }}>
+            {(openPanel === 'updated' ? updatedList : pendingList).length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13, fontStyle: 'italic' }}>
+                {openPanel === 'updated' ? 'No updated employees yet this month.' : 'All employees are up to date! 🎉'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 8, paddingBottom: 8 }}>
+                {(openPanel === 'updated' ? updatedList : pendingList).map(e => {
+                  const isT = (e.status ?? '').toLowerCase() === 'teaching';
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={() => handleEmployeeClick(e.id)}
+                      title={`Open leave card for ${e.surname}, ${e.given}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 13px', borderRadius: 8,
+                        border: `1.5px solid ${openPanel === 'updated' ? '#a7f3d0' : '#fca5a5'}`,
+                        background: openPanel === 'updated' ? '#f0fdf4' : '#fff5f5',
+                        cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                        fontSize: 12, fontWeight: 500,
+                        transition: 'all .15s',
+                        textAlign: 'left',
+                      }}
+                      onMouseEnter={ev => {
+                        (ev.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+                        (ev.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
+                      }}
+                      onMouseLeave={ev => {
+                        (ev.currentTarget as HTMLButtonElement).style.transform = '';
+                        (ev.currentTarget as HTMLButtonElement).style.boxShadow = '';
+                      }}
+                    >
+                      {/* Category badge */}
+                      <span style={{
+                        fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 700,
+                        background: isT ? '#ddeeff' : '#e8f5ee',
+                        color: isT ? '#1e3a6e' : '#1a5c42',
+                        flexShrink: 0,
+                      }}>
+                        {e.status}
+                      </span>
+                      {/* Name */}
+                      <span style={{ fontWeight: 700, color: '#1e2530' }}>
+                        {(e.surname ?? '').toUpperCase()}, {e.given ?? ''}{e.suffix ? ` ${e.suffix}` : ''}
+                      </span>
+                      {/* ID */}
+                      <span style={{ fontSize: 10, color: '#6b7a8d', fontFamily: "'JetBrains Mono', monospace" }}>
+                        {e.id}
+                      </span>
+                      {/* Arrow hint */}
+                      <span style={{ fontSize: 10, color: openPanel === 'updated' ? '#059669' : '#dc2626', marginLeft: 2 }}>
+                        →
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Hint footer */}
+          <div style={{
+            padding: '8px 20px',
+            background: '#f9fafb',
+            borderTop: '1px solid #e5e7eb',
+            fontSize: 11, color: '#9ca3af', fontStyle: 'italic',
+          }}>
+            Click any name to open their leave card directly.
+          </div>
+        </div>
+      )}
 
       {/* ── Division Photo Section ───────────────────────────── */}
       <div className="hp-reveal" style={{
@@ -221,35 +380,61 @@ export default function HomepagePage({ showLeaveStats = true }: Props) {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
 
-function StatCard({ icon, value, label, color, bg, delay }: {
+// ── StatCard ─────────────────────────────────────────────────
+function StatCard({ icon, value, label, color, bg, delay, onClick, clickable, active }: {
   icon: string; value: number; label: string;
   color: string; bg: string; delay: number;
+  onClick?: () => void;
+  clickable?: boolean;
+  active?: boolean;
 }) {
   return (
-    <div className="hp-reveal" style={{
-      background: bg, borderRadius: 12, padding: '20px 24px',
-      display: 'flex', alignItems: 'center', gap: 16,
-      boxShadow: '0 2px 12px rgba(0,0,0,0.10)',
-      border: `1.5px solid ${color}33`,
-      opacity: 0, transform: 'translateY(16px)',
-      transition: `opacity 0.5s ease ${delay}ms, transform 0.5s ease ${delay}ms`,
-    }}>
+    <div
+      className="hp-reveal"
+      onClick={onClick}
+      style={{
+        background: active ? `${color}18` : bg,
+        borderRadius: 12, padding: '20px 24px',
+        display: 'flex', alignItems: 'center', gap: 16,
+        boxShadow: active
+          ? `0 0 0 2px ${color}, 0 4px 16px ${color}33`
+          : '0 2px 12px rgba(0,0,0,0.10)',
+        border: `1.5px solid ${active ? color : color + '33'}`,
+        opacity: 0, transform: 'translateY(16px)',
+        transition: `opacity 0.5s ease ${delay}ms, transform 0.5s ease ${delay}ms, box-shadow 0.15s, border-color 0.15s`,
+        cursor: clickable ? 'pointer' : 'default',
+        userSelect: 'none',
+      }}
+    >
       <div style={{
         width: 48, height: 48, borderRadius: 12, background: `${color}22`,
         display:'flex', alignItems:'center', justifyContent:'center', fontSize: 22, flexShrink:0,
       }}>{icon}</div>
-      <div>
+      <div style={{ flex: 1 }}>
         <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
         <div style={{ fontSize: 11, color: `${color}99`, marginTop: 3, fontWeight: 600, letterSpacing: 0.5 }}>{label}</div>
       </div>
+      {clickable && (
+        <div style={{ fontSize: 11, color: `${color}88`, fontWeight: 700 }}>
+          {active ? '▲' : '▼'}
+        </div>
+      )}
     </div>
   );
 }
 
+// ── DeveloperCard ─────────────────────────────────────────────
 function DeveloperCard({ name, contact, location, photo, accentColor, gradientTop, badgeBg, badgeColor, badge, hearts }: {
   name: string; contact: string; location: string; photo: string;
   accentColor: string; gradientTop: string; badgeBg: string; badgeColor: string;
