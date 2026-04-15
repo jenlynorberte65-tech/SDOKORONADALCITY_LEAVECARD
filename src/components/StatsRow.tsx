@@ -72,22 +72,18 @@ function parseDateForCheck(dateStr: string): Date | null {
  * isCardUpdatedThisMonth
  * ──────────────────────
  * Returns true only when a genuine, current-month entry exists in the
- * employee's records — never based on lastEditedAt, which is too broad
- * (it updates on ANY save: profile edits, past-record additions, new
- * employee registration) and would produce false "updated" badges.
+ * employee's records — never based on lastEditedAt, which is too broad.
  *
  * Teaching:
  *   → true  when records contains at least one non-conversion entry
- *            whose `from` or `to` date falls in the current month/year.
+ *            whose `from`, `to`, OR `prd` date falls in the current month/year.
+ *            (prd fallback handles entries where only the period label is set)
  *   → false for zero records (new employee) or no current-month entries.
  *
  * Non-Teaching / Teaching-Related:
  *   → true  when records contains a Monthly Accrual (or Service Credit)
  *            entry whose date falls in the current month/year.
  *   → false if accrual has not yet been posted for this month.
- *
- * The lastEditedAt parameter is kept for call-site compatibility but is
- * intentionally not used for status evaluation.
  */
 export function isCardUpdatedThisMonth(
   records: LeaveRecord[],
@@ -106,12 +102,17 @@ export function isCardUpdatedThisMonth(
 
   // ── Teaching ────────────────────────────────────────────────────────────
   // A Teaching employee is "updated" when at least one leave entry (not a
-  // conversion marker) has a from/to date that falls in the current month.
-  // New employees (zero records) always fall through to false above.
+  // conversion marker) has a from/to/prd date that falls in the current month.
+  //
+  // FIX: also check `r.prd` — some Teaching entries are saved with only the
+  // period label filled (e.g. "April 2025") and no explicit from/to dates.
+  // Without this fallback those employees always showed "Not Yet Updated"
+  // even after data was entered in their leave card.
   if (category === 'teaching') {
     return records.some(r => {
       if (r._conversion) return false;
-      const dateStr = r.from || r.to || '';
+      // Check from, to, and prd — use whichever is present
+      const dateStr = r.from || r.to || r.prd || '';
       if (!dateStr) return false;
       const d = parseDateForCheck(dateStr);
       return !!d && d.getFullYear() === thisYear && d.getMonth() === thisMon;
@@ -120,8 +121,7 @@ export function isCardUpdatedThisMonth(
 
   // ── Non-Teaching / Teaching-Related ─────────────────────────────────────
   // These employees are "updated" only when the monthly accrual (1.25 each)
-  // has been posted for the current month. Any other edit — including profile
-  // saves or adding leave entries — must NOT flip the badge to "updated".
+  // has been posted for the current month.
   return records.some(r => {
     if (r._conversion) return false;
 
