@@ -89,7 +89,7 @@ export default function LeaveCardsPage({ onOpenCard }: Props) {
   const mandatoryKey  = getMandatoryLeaveKey();
   const currentYear   = new Date().getFullYear();
   const currentMonth  = new Date().getMonth(); // 0-indexed; 11 = December
-  const isDecember    = currentMonth === 11;
+  const isDecember = true; // TEMP: remove for testing, change back to: currentMonth === 11
 
   const accrualDone = useMemo(() => {
     if (typeof window === 'undefined') return false;
