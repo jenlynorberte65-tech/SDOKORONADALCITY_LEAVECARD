@@ -400,3 +400,7 @@ export function validateDepedEmail(email: string): string | null {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format.';
   return null;
 }
+// ── Mandatory Leave key (once per year) ──────────────────────
+export function getMandatoryLeaveKey(): string {
+  return `mandatory_leave_${new Date().getFullYear()}`;
+}
