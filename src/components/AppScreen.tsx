@@ -20,41 +20,43 @@ export default function AppScreen() {
   const isEmployee = state.role === 'employee';
 
   // ── Pre-load every employee's records immediately after login ──────────
-  // This ensures the dashboard's Updated / Not-Yet-Updated badges are
-  // accurate the moment the user lands on the home page — without needing
-  // to visit the Leave Cards section first.
-  const preloadedRef = useRef(false);
+  // Uses a Set of already-fetched IDs instead of a single boolean flag.
+  // This means:
+  //   • Initial load: fetches everyone with no records
+  //   • New employee registered mid-session: their ID isn't in the Set yet,
+  //     so the effect re-runs and fetches them automatically
+  //   • No duplicate fetches: ID is added to the Set before the await
+  const loadedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Only run once per session, and only for admin / encoder roles
-    // (employees see their own card; school-admins don't need leave badges).
-    if (preloadedRef.current) return;
     if (!state.isAdmin && !state.isEncoder) return;
-    if (state.db.length === 0) return;   // db not ready yet — will retry below
+    if (state.db.length === 0) return;
 
-    preloadedRef.current = true;
+    // Only employees whose records we haven't fetched yet
+    const missing = state.db.filter(
+      e => !loadedIdsRef.current.has(e.id) && (!e.records || e.records.length === 0)
+    );
+    if (missing.length === 0) return;
 
-    const preloadAll = async () => {
-      for (const e of state.db) {
-        // Skip employees whose records are already loaded
-        if (e.records && e.records.length > 0) continue;
+    // Mark immediately to prevent duplicate fetches on rapid re-renders
+    missing.forEach(e => loadedIdsRef.current.add(e.id));
+
+    const fetchMissing = async () => {
+      for (const e of missing) {
         try {
           const res = await apiCall('get_records', { employee_id: e.id }, 'GET');
           if (res.ok && res.records) {
-            dispatch({
-              type: 'SET_EMPLOYEE_RECORDS',
-              payload: { id: e.id, records: res.records },
-            });
+            dispatch({ type: 'SET_EMPLOYEE_RECORDS', payload: { id: e.id, records: res.records } });
           }
         } catch {
-          // Silent — badge will just stay "pending" for this employee
+          // Remove from set so it retries on next render
+          loadedIdsRef.current.delete(e.id);
         }
       }
     };
 
-    preloadAll();
-  // Re-run if db populates after the first render (e.g. session restore
-  // fetches personnel list asynchronously).
+    fetchMissing();
+  // Runs whenever db size changes (new employee added) or role changes (new login)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.db.length, state.isAdmin, state.isEncoder]);
 
@@ -72,8 +74,7 @@ export default function AppScreen() {
   function handleLogout() {
     dispatch({ type: 'LOGOUT' });
     sessionStorage.removeItem('deped_session');
-    // Allow re-preload on next login
-    preloadedRef.current = false;
+    loadedIdsRef.current = new Set(); // reset so next login re-fetches
   }
 
   async function handleOpenCard(id: string) {
@@ -113,7 +114,8 @@ export default function AppScreen() {
       if (p === 'cards') return <LeaveCardsPage onOpenCard={handleOpenCard} />;
       if (p === 'nt')    return <NTCardPage onBack={() => handleNavigate('cards')} />;
       if (p === 't')     return <TCardPage onBack={() => handleNavigate('cards')} />;
-      return <HomepagePage showLeaveStats={true} />;
+      // Pass onOpenCard so HomepagePage employee list items can navigate directly
+      return <HomepagePage showLeaveStats={true} onOpenCard={handleOpenCard} />;
     }
     return null;
   }
