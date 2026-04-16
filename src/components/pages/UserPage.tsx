@@ -199,6 +199,7 @@ export default function UserPage({ onLogout }: Props) {
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [downloading, setDownloading] = useState(false);
   const [printing, setPrinting]       = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
 
   useEffect(() => {
     if (!emp || (emp.records && emp.records.length > 0)) return;
@@ -235,17 +236,31 @@ export default function UserPage({ onLogout }: Props) {
   }
 
   return (
+    {showLogout && <LogoutModal onClose={() => setShowLogout(false)} />}
     <div>
       {/* ── Action bar ── */}
-      <div className="user-action-bar no-print" style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', marginBottom:18, gap:10, flexWrap:'wrap' }}>
-        <button className="btn b-pdf" onClick={handleDownload} disabled={downloading}>
-          {downloading ? '⏳ Generating…' : '⬇ Download PDF'}
-        </button>
-        <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
-          {printing ? '⏳ Preparing…' : '🖨 Print'}
-        </button>
-      </div>
+      <div className="user-action-bar no-print" style={{
+  display: 'flex', justifyContent: 'space-between',
+  alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap',
+}}>
+  {/* Left — logout */}
+  <button
+    className="btn b-red"
+    onClick={() => setShowLogout(true)}
+  >
+    🔒 Logout
+  </button>
 
+  {/* Right — PDF + Print */}
+  <div style={{ display: 'flex', gap: 10 }}>
+    <button className="btn b-pdf" onClick={handleDownload} disabled={downloading}>
+      {downloading ? '⏳ Generating…' : '⬇ Download PDF'}
+    </button>
+    <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
+      {printing ? '⏳ Preparing…' : '🖨 Print'}
+    </button>
+  </div>
+</div>
       {/* ── Profile card with header ── */}
       <div className="card" id="userProfileCard">
         <div style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 20px 10px', borderBottom:'2px solid var(--g2)', background:'linear-gradient(90deg,var(--g0),var(--g1))' }}>
