@@ -1,11 +1,11 @@
 'use client';
+import { LogoutModal } from '@/components/modals/LogoutModal';
 import { useEffect, useState, useRef } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall } from '@/lib/api';
 import { ProfileBlock, LeaveTableHeader, computeNTRow, computeTRow } from '@/components/leavecard/LeaveCardTable';
 import { fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
 import type { LeaveRecord, Personnel } from '@/types';
-import { LogoutModal } from '@/components/modals/LogoutModal';
 
 interface Props { onLogout: () => void; }
 
