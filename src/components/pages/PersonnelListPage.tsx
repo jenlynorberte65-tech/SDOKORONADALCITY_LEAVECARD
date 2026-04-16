@@ -28,7 +28,7 @@ function Pagination({ page, total, pageSize, onChange }: PaginationProps) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--mu)', userSelect:'none' }}>
       <span>Page {page} of {totalPages}</span>
-      <button style={btnStyle(page <= 1)}         onClick={() => onChange(page - 1)} disabled={page <= 1}>›</button>
+      <button style={btnStyle(page <= 1)}         onClick={() => onChange(page - 1)} disabled={page <= 1}>‹</button>
       <button style={btnStyle(page >= totalPages)} onClick={() => onChange(totalPages)} disabled={page >= totalPages}>»</button>
     </div>
   );
@@ -143,6 +143,42 @@ function EmpCard({ e, onOpenCard, onEdit, isTeaching, upd, dispatch }: EmpCardPr
   );
 }
 
+// ── Print Row (used inside the print-only table) ───────────────────────────────
+function PrintRow({ e, index, upd }: { e: Personnel; index: number; upd: boolean }) {
+  const isInactive = e.account_status === 'inactive';
+  const fullName   = `${(e.surname || '').toUpperCase()}, ${e.given || ''}${e.suffix ? ' ' + e.suffix : ''}`;
+  return (
+    <tr style={{ fontSize: 10, lineHeight: 1.4 }}>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', textAlign:'center', color:'#555' }}>{index + 1}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', fontWeight:700 }}>{fullName}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', fontFamily:"'JetBrains Mono',monospace", fontSize:9 }}>{e.id}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd' }}>{e.status || '—'}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd' }}>{e.pos || '—'}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', fontSize:9 }}>{e.school || '—'}</td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', textAlign:'center' }}>
+        {isInactive ? 'Inactive' : upd ? '✅ Updated' : '⏳ Pending'}
+      </td>
+      <td style={{ padding:'4px 6px', borderBottom:'1px solid #ddd', textAlign:'center' }}>
+        {isInactive ? '🔴' : '🟢'}
+      </td>
+    </tr>
+  );
+}
+
+// ── Build active filter description for print header ──────────────────────────
+function buildFilterDesc(
+  search: string, fCat: string, fPos: string, fSch: string, fCard: string, fAcct: string
+): string {
+  const parts: string[] = [];
+  if (search) parts.push(`Search: "${search}"`);
+  if (fCat)   parts.push(`Category: ${fCat}`);
+  if (fPos)   parts.push(`Position: ${fPos}`);
+  if (fSch)   parts.push(`School/Office: ${fSch}`);
+  if (fCard)  parts.push(`Card Status: ${fCard === 'updated' ? 'Updated' : 'Pending'}`);
+  if (fAcct)  parts.push(`Account: ${fAcct === 'active' ? 'Active' : 'Inactive'}`);
+  return parts.length ? parts.join(' | ') : 'All Personnel (no filters applied)';
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function PersonnelListPage({ onOpenCard }: Props) {
   const { state, dispatch } = useAppStore();
@@ -219,6 +255,146 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
     setRegOpen(true);
   }
 
+  // ── Print filtered list ────────────────────────────────────────────────────
+  function handlePrintList() {
+    const filterDesc = buildFilterDesc(search, fCat, fPos, fSch, fCard, fAcct);
+    const printDate  = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+    const rows = filtered.map((e, i) => {
+      const isInactive = e.account_status === 'inactive';
+      const upd = isInactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
+      const fullName = `${(e.surname || '').toUpperCase()}, ${e.given || ''}${e.suffix ? ' ' + e.suffix : ''}`;
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${fullName}</strong></td>
+          <td style="font-family:monospace;font-size:9pt">${e.id}</td>
+          <td>${e.status || '—'}</td>
+          <td>${e.pos || '—'}</td>
+          <td>${e.school || '—'}</td>
+          <td style="text-align:center">${isInactive ? 'Inactive' : upd ? '✅ Updated' : '⏳ Pending'}</td>
+          <td style="text-align:center">${isInactive ? 'Inactive' : 'Active'}</td>
+        </tr>`;
+    }).join('');
+
+    // Category summary counts from filtered set
+    const fTeaching        = filtered.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
+    const fNonTeaching     = filtered.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length;
+    const fTeachingRelated = filtered.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Personnel List — SDO Koronadal</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #111; margin:0; }
+
+    /* Header */
+    .print-header { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #1a5c42; padding-bottom: 8px; }
+    .print-header .org { font-size: 8pt; color: #555; letter-spacing:.5px; text-transform:uppercase; }
+    .print-header h1  { font-size: 14pt; font-weight: 800; margin: 4px 0 2px; color: #1a2e1a; }
+    .print-header .sub { font-size: 9pt; color: #444; }
+
+    /* Meta row */
+    .meta-row { display:flex; justify-content:space-between; align-items:flex-start; margin:8px 0 10px; gap:12px; flex-wrap:wrap; }
+    .meta-block { font-size: 8.5pt; color: #333; }
+    .meta-block strong { display:block; font-size:7.5pt; text-transform:uppercase; letter-spacing:.4px; color:#777; margin-bottom:2px; }
+
+    /* Summary chips */
+    .summary { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .chip { padding:3px 10px; border-radius:20px; font-size:8pt; font-weight:700; border:1px solid; }
+    .chip-t  { background:#ddeeff; color:#1a3a6b; border-color:#bfdbfe; }
+    .chip-nt { background:#f3f4f6; color:#374151; border-color:#d1d5db; }
+    .chip-tr { background:#ede9fe; color:#5b21b6; border-color:#ddd6fe; }
+    .chip-total { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
+
+    /* Table */
+    table { width:100%; border-collapse:collapse; font-size:9pt; }
+    thead tr th {
+      background:#1a5c42; color:#fff; padding:6px 7px;
+      text-align:left; font-size:8pt; font-weight:700;
+      border:1px solid #134a34; white-space:nowrap;
+    }
+    thead tr th:first-child { text-align:center; width:32px; }
+    tbody tr:nth-child(even) { background:#f7faf7; }
+    tbody tr td { padding:5px 7px; border-bottom:1px solid #e5e7eb; vertical-align:middle; }
+    tbody tr td:first-child { text-align:center; color:#777; font-size:8pt; }
+    tbody tr:hover { background:#eefaf3; }
+
+    /* Footer */
+    .print-footer { margin-top:14px; border-top:1px solid #ccc; padding-top:7px; display:flex; justify-content:space-between; font-size:7.5pt; color:#777; }
+
+    @media print {
+      .no-print { display:none !important; }
+      tbody tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-header">
+    <div class="org">Republic of the Philippines • Department of Education • SDO City of Koronadal</div>
+    <h1>Personnel Registry</h1>
+    <div class="sub">Official Personnel List — Leave Management System</div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-block">
+      <strong>Filter Applied</strong>
+      ${filterDesc}
+    </div>
+    <div class="meta-block" style="text-align:right">
+      <strong>Printed On</strong>
+      ${printDate}
+    </div>
+  </div>
+
+  <div class="summary">
+    <span class="chip chip-total">👥 Total: ${filtered.length}</span>
+    <span class="chip chip-t">📚 Teaching: ${fTeaching}</span>
+    <span class="chip chip-nt">🏢 Non-Teaching: ${fNonTeaching}</span>
+    <span class="chip chip-tr">🎓 Teaching Related: ${fTeachingRelated}</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Full Name</th>
+        <th>Employee ID</th>
+        <th>Category</th>
+        <th>Position</th>
+        <th>School / Office</th>
+        <th style="text-align:center">Card Status</th>
+        <th style="text-align:center">Account</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+
+  <div class="print-footer">
+    <span>SDO City of Koronadal — Leave Management System</span>
+    <span>Total Records: ${filtered.length} &nbsp;|&nbsp; Printed: ${printDate}</span>
+  </div>
+
+</body>
+</html>`;
+
+    const w = window.open('', '_blank', 'width=1100,height=800');
+    if (!w) { alert('Pop-up blocked. Please allow pop-ups for this site.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  }
+
+  const hasFilters = !!(search || fCat || fPos || fSch || fCard || fAcct);
+
   return (
     <>
       {/* ── Dashboard Stats ── */}
@@ -259,6 +435,32 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
             <button className="btn b-grn" onClick={() => { setEditEmp(null); setRegOpen(true); }}>
               ➕ Register New Personnel
             </button>
+
+            {/* ── Print List Button ── */}
+            <button
+              className="btn"
+              title={hasFilters ? `Print ${filtered.length} filtered employee(s)` : `Print all ${filtered.length} employee(s)`}
+              onClick={handlePrintList}
+              disabled={filtered.length === 0}
+              style={{
+                background: filtered.length === 0 ? 'var(--g4)' : 'linear-gradient(135deg,#1a3a6b,#2563eb)',
+                color: filtered.length === 0 ? '#9ca3af' : '#fff',
+                fontWeight: 700, fontSize: 12, height: 36, padding: '0 16px',
+                borderRadius: 8, border: 'none', cursor: filtered.length === 0 ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+              }}
+            >
+              🖨 Print List
+              {hasFilters && filtered.length > 0 && (
+                <span style={{
+                  background:'rgba(255,255,255,0.25)', borderRadius:10,
+                  padding:'1px 7px', fontSize:10, fontWeight:800,
+                }}>
+                  {filtered.length}
+                </span>
+              )}
+            </button>
+
             <div className="srch">
               <span className="sri">🔍</span>
               <input
@@ -331,6 +533,11 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0 4px', flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:12, color:'var(--mu)' }}>
                   Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} employee{filtered.length !== 1 ? 's' : ''}
+                  {hasFilters && (
+                    <span style={{ marginLeft:8, color:'var(--nb,#1a56db)', fontWeight:600 }}>
+                      (filtered)
+                    </span>
+                  )}
                 </span>
                 <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
               </div>
