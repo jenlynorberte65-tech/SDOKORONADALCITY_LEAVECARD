@@ -196,6 +196,108 @@ async function triggerPrint(contentHTML: string): Promise<void> {
 }
 
 // ── Main component ────────────────────────────────────────────
+// ── Logout Confirmation Modal ─────────────────────────────────
+function LogoutConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div
+      className="no-print"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(8, 25, 16, 0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(3px)',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: 'white', borderRadius: 16, width: 360,
+          boxShadow: '0 8px 40px rgba(8,25,16,0.28)',
+          overflow: 'hidden', animation: 'lcm-pop .18s ease-out',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #7f1d1d, #991b1b)',
+          padding: '20px 24px 16px',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, flexShrink: 0,
+          }}>🛡️</div>
+          <div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: 15, letterSpacing: '.2px' }}>
+              Confirm Logout
+            </div>
+            <div style={{ color: 'rgba(255,255,255,.65)', fontSize: 11, marginTop: 2 }}>
+              SDO Koronadal City Leave System
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px 24px 8px' }}>
+          <div style={{
+            background: '#fef2f2', border: '1px solid #fecaca',
+            borderRadius: 10, padding: '14px 16px',
+            display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 13, color: '#7f1d1d', lineHeight: 1.7 }}>
+              You are about to sign out of your account. Any unsaved changes will be lost.
+              Are you sure you want to continue?
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{
+          padding: '16px 24px 20px',
+          display: 'flex', gap: 10, justifyContent: 'flex-end',
+        }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '9px 20px', borderRadius: 8, border: '1.5px solid #d1d5db',
+              background: 'white', color: '#374151', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'background .15s',
+            }}
+            onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
+            onMouseOut={e => (e.currentTarget.style.background = 'white')}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: '9px 22px', borderRadius: 8, border: 'none',
+              background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+              color: 'white', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+              boxShadow: '0 2px 8px rgba(127,29,29,0.35)',
+              transition: 'opacity .15s',
+            }}
+            onMouseOver={e => (e.currentTarget.style.opacity = '0.88')}
+            onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+          >
+            🔓 Yes, Logout
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes lcm-pop {
+          from { opacity: 0; transform: scale(.93) translateY(-8px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
 export default function UserPage({ onLogout }: Props) {
   const { state, dispatch } = useAppStore();
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
