@@ -350,5 +350,3 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
     </>
   );
 }
-
-
