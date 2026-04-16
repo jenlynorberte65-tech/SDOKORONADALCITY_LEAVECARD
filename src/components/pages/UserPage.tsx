@@ -1,10 +1,11 @@
 'use client';
-import { LogoutModal } from '@/components/modals/LogoutModal';
+
 import { useEffect, useState, useRef } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { apiCall } from '@/lib/api';
 import { ProfileBlock, LeaveTableHeader, computeNTRow, computeTRow } from '@/components/leavecard/LeaveCardTable';
 import { fmtD, fmtNum, hz, isEmptyRecord } from '@/lib/api';
+import { LogoutModal } from '@/components/modals/LogoutModal';
 import type { LeaveRecord, Personnel } from '@/types';
 
 interface Props { onLogout: () => void; }
@@ -261,7 +262,8 @@ export default function UserPage({ onLogout }: Props) {
     <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
       {printing ? '⏳ Preparing…' : '🖨 Print'}
     </button>
-  </div>   </div>
+  </div>
+</div>
 
       {/* ── Profile card with header ── */}
       <div className="card" id="userProfileCard">
