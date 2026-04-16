@@ -156,9 +156,7 @@ export function Topbar({ onMenuClick, showMenu, onLogout, showLogoutBtn, showSet
               ⚙️ <span style={{ fontSize: 11 }}>Accounts</span>
             </button>
           )}
-          {showLogoutBtn && (
-            <button className="nb out" onClick={onLogout}>🔒 Logout</button>
-          )}
+
         </div>
       </div>
     </div>
