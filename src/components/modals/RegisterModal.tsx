@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { validateDepedEmail, fmtDateInput } from '@/lib/api';
 import { useAppStore } from '@/hooks/useAppStore';
 import type { Personnel } from '@/types';
@@ -80,12 +80,8 @@ const SCHOOL_OPTIONS: string[] = [
 ];
 
 // ── Strip ISO timestamp suffix, leaving only the date portion ────────────────
-// Handles: "1964-02-04T00:00:00.000Z" → "1964-02-04"
-//          "1993-08-16T00:00:00.000Z" → "1993-08-16"
-//          "mm/dd/yyyy" or "" → unchanged
 function cleanDate(val: string | undefined | null): string {
   if (!val) return '';
-  // If it's an ISO string with a T, take only the date part
   if (val.includes('T')) return val.split('T')[0];
   return val;
 }
@@ -94,9 +90,7 @@ function cleanDate(val: string | undefined | null): string {
 function isoToMmDdYyyy(val: string): string {
   const clean = cleanDate(val);
   if (!clean) return '';
-  // Already mm/dd/yyyy
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) return clean;
-  // yyyy-mm-dd → mm/dd/yyyy
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
     const [yyyy, mm, dd] = clean.split('-');
     return `${mm}/${dd}/${yyyy}`;
@@ -104,6 +98,124 @@ function isoToMmDdYyyy(val: string): string {
   return clean;
 }
 
+// Convert "mm/dd/yyyy" → "yyyy-mm-dd" for the native date input's value
+function mmDdYyyyToIso(val: string): string {
+  if (!val) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
+    const [mm, dd, yyyy] = val.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DatePickerField — text mask + calendar button combo
+// ─────────────────────────────────────────────────────────────────────────────
+interface DatePickerFieldProps {
+  label: string;
+  value: string;           // always mm/dd/yyyy
+  onChange: (v: string) => void;
+  required?: boolean;
+  span?: number;
+}
+
+function DatePickerField({ label, value, onChange, required, span }: DatePickerFieldProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  // When the native date picker changes → convert to mm/dd/yyyy
+  function handlePickerChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const iso = e.target.value; // yyyy-mm-dd
+    if (!iso) { onChange(''); return; }
+    const [yyyy, mm, dd] = iso.split('-');
+    onChange(`${mm}/${dd}/${yyyy}`);
+  }
+
+  // When text changes → apply the mask
+  function handleTextChange(e: React.ChangeEvent<HTMLInputElement>) {
+    onChange(fmtDateInput(e.target.value));
+  }
+
+  return (
+    <div className="f" style={span ? { gridColumn: `span ${span}` } : {}}>
+      <label>
+        {label}
+        {required && <span style={{ color: '#e53e3e', fontSize: 10 }}> *</span>}
+      </label>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', position: 'relative' }}>
+        {/* Visible masked text input */}
+        <input
+          type="text"
+          value={value}
+          onChange={handleTextChange}
+          placeholder="mm/dd/yyyy"
+          maxLength={10}
+          style={{
+            flex: 1,
+            height: 'var(--H)',
+            padding: '0 12px',
+            border: '1.5px solid var(--br)',
+            borderRadius: 7,
+            fontSize: 12,
+            background: 'white',
+            color: 'var(--cha)',
+            fontFamily: 'Inter,sans-serif',
+            minWidth: 0,
+          }}
+        />
+
+        {/* Calendar icon button — clicks the hidden date input */}
+        <button
+          type="button"
+          title="Pick a date"
+          onClick={() => dateInputRef.current?.showPicker?.()}
+          style={{
+            flexShrink: 0,
+            width: 32,
+            height: 'var(--H)',
+            border: '1.5px solid var(--br)',
+            borderRadius: 7,
+            background: 'var(--g1, #1a5c42)',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            transition: 'opacity .15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          📅
+        </button>
+
+        {/* Hidden native date picker — visually invisible, positioned under the button */}
+        <input
+          ref={dateInputRef}
+          type="date"
+          value={mmDdYyyyToIso(value)}
+          onChange={handlePickerChange}
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            width: 32,
+            height: 'var(--H)',
+            opacity: 0,
+            pointerEvents: 'none', // triggered programmatically via showPicker()
+            border: 'none',
+          }}
+          tabIndex={-1}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  RegisterModal
+// ─────────────────────────────────────────────────────────────────────────────
 export default function RegisterModal({ employee, onClose, onSaved }: Props) {
   const { state } = useAppStore();
   const [f, setF]           = useState<F>(EMPTY);
@@ -124,7 +236,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         maternal:       employee.maternal       ?? '',
         sex:            employee.sex            ?? '',
         civil:          employee.civil          ?? '',
-        // ✅ FIX: strip ISO timestamp and convert to mm/dd/yyyy for date fields
         dob:            isoToMmDdYyyy(employee.dob),
         pob:            employee.pob            ?? '',
         addr:           employee.addr           ?? '',
@@ -155,7 +266,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
 
   function set(k: string, v: string) { setF(prev => ({ ...prev, [k]: v })); }
 
-  // Date keys that use the mm/dd/yyyy mask
   const DATE_KEYS = ['dob', 'dexam', 'appt'];
 
   async function handleSave() {
@@ -343,6 +453,7 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
     }
   }
 
+  // Regular (non-date) field helper — unchanged from original
   const fi = (label: string, key: string, type = 'text', span?: number, hint?: string) => (
     <div className="f" style={span ? { gridColumn: `span ${span}` } : {}}>
       <label>{label}{hint && <span style={{ color: '#e53e3e', fontSize: 10 }}> {hint}</span>}</label>
@@ -351,20 +462,15 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
         value={f[key] || ''}
         onChange={e => {
           let v = e.target.value;
-          if (key === 'id')              v = v.replace(/\D/g, '').slice(0, 7);
-          if (key === 'email')           v = v.toLowerCase();
-          if (DATE_KEYS.includes(key))   v = fmtDateInput(v);   // ← mm/dd/yyyy mask
+          if (key === 'id')    v = v.replace(/\D/g, '').slice(0, 7);
+          if (key === 'email') v = v.toLowerCase();
           set(key, v);
         }}
         placeholder={
-          key === 'id'               ? 'e.g. 2024001' :
-          key === 'email'            ? 'juan@deped.gov.ph' :
-          DATE_KEYS.includes(key)    ? 'mm/dd/yyyy' : ''
+          key === 'id'    ? 'e.g. 2024001' :
+          key === 'email' ? 'juan@deped.gov.ph' : ''
         }
-        maxLength={
-          key === 'id'               ? 7 :
-          DATE_KEYS.includes(key)    ? 10 : undefined
-        }
+        maxLength={key === 'id' ? 7 : undefined}
       />
       {key === 'email' && f.email && !f.email.endsWith('@deped.gov.ph') && (
         <span style={{ fontSize: 10, color: '#e53e3e' }}>⚠️ Must end with @deped.gov.ph</span>
@@ -430,8 +536,13 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
               </datalist>
             </div>
 
-            {/* ── Date of Birth — mm/dd/yyyy text mask ── */}
-            {fi('Date of Birth (mm/dd/yyyy)', 'dob', 'text', undefined, '*')}
+            {/* ── Date of Birth — text mask + calendar picker ── */}
+            <DatePickerField
+              label="Date of Birth"
+              value={f.dob}
+              onChange={v => set('dob', v)}
+              required
+            />
             {fi('Place of Birth', 'pob')}
             {fi('Present Address', 'addr', 'text', 2, '*')}
             {fi('Name of Spouse',  'spouse', 'text', 2)}
@@ -446,10 +557,18 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
             {fi('TIN Number', 'tin')}
             {fi('Place of Exam', 'pexam')}
 
-            {/* ── Date of Exam — mm/dd/yyyy text mask ── */}
-            {fi('Date of Exam (mm/dd/yyyy)',                'dexam', 'text')}
-            {/* ── Date of Original Appointment — mm/dd/yyyy text mask ── */}
-            {fi('Date of Original Appointment (mm/dd/yyyy)', 'appt', 'text')}
+            {/* ── Date of Exam — text mask + calendar picker ── */}
+            <DatePickerField
+              label="Date of Exam"
+              value={f.dexam}
+              onChange={v => set('dexam', v)}
+            />
+            {/* ── Date of Original Appointment — text mask + calendar picker ── */}
+            <DatePickerField
+              label="Date of Original Appointment"
+              value={f.appt}
+              onChange={v => set('appt', v)}
+            />
           </div>
 
           {/* Employment Details */}
@@ -468,7 +587,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
           )}
 
           <div className="ig">
-            {/* ── Category — now includes Teaching Related ── */}
             <div className="f">
               <label>Category <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
               <input list="statList" value={f.status} onChange={e => set('status', e.target.value)}
@@ -491,7 +609,6 @@ export default function RegisterModal({ employee, onClose, onSaved }: Props) {
 
             {fi('Position / Designation', 'pos', 'text', undefined, '*')}
 
-            {/* ── School / Office Assignment — dropdown + manual input ── */}
             <div className="f" style={{ gridColumn: 'span 2' }}>
               <label>School / Office Assignment <span style={{ color: '#e53e3e', fontSize: 10 }}>*</span></label>
               <input
