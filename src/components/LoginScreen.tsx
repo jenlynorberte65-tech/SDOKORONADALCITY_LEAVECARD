@@ -27,7 +27,7 @@ export default function LoginScreen() {
       const personnel = await fetchAllPersonnel();
       if (personnel.length) dispatch({ type: 'SET_DB', payload: personnel });
       dispatch({ type: 'SET_PAGE', payload: 'home' });
-      saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'home' });
+      saveSession({ isAdmin: true, isEncoder: res.role === 'encoder', isSchoolAdmin: false, curId: null, page: 'home', adminName: res.name, loginId: res.login_id });
 
     } else if (res.role === 'school_admin') {
       dispatch({ type: 'LOGIN_SCHOOL_ADMIN', payload: { name: res.name!, loginId: res.login_id!, dbId: res.db_id! } });
