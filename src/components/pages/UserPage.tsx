@@ -303,7 +303,7 @@ export default function UserPage({ onLogout }: Props) {
   const emp = state.db.find(e => e.id === state.curId) as Personnel | undefined;
   const [downloading, setDownloading] = useState(false);
   const [printing, setPrinting]       = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (!emp || (emp.records && emp.records.length > 0)) return;
