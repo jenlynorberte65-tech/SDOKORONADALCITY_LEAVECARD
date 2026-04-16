@@ -240,30 +240,43 @@ export default function UserPage({ onLogout }: Props) {
   return (
     
     <div>
-      {showLogout && <LogoutModal onClose={() => setShowLogout(false)} />}
+      {/* Logout confirmation modal */}
+      {showLogoutConfirm && (
+        <LogoutConfirmModal
+          onConfirm={onLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+      )}
       {/* ── Action bar ── */}
       <div className="user-action-bar no-print" style={{
-  display: 'flex', justifyContent: 'space-between',
-  alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap',
-}}>
-  {/* Left — logout */}
-  <button
-    className="btn b-red"
-    onClick={() => setShowLogout(true)}
-  >
-    🔒 Logout
-  </button>
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 18, gap: 10, flexWrap: 'wrap',
+      }}>
+        {/* Logout button — left side */}
+        <button
+          className="btn"
+          onClick={() => setShowLogoutConfirm(true)}
+          style={{
+            background: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
+            color: 'white', border: 'none', borderRadius: 8,
+            padding: '9px 18px', fontWeight: 700, fontSize: 13,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+            boxShadow: '0 2px 8px rgba(127,29,29,0.3)',
+          }}
+        >
+          🔒 Logout
+        </button>
 
-  {/* Right — PDF + Print */}
-  <div style={{ display: 'flex', gap: 10 }}>
-    <button className="btn b-pdf" onClick={handleDownload} disabled={downloading}>
-      {downloading ? '⏳ Generating…' : '⬇ Download PDF'}
-    </button>
-    <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
-      {printing ? '⏳ Preparing…' : '🖨 Print'}
-    </button>
-  </div>
-</div>
+        {/* PDF + Print — right side */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn b-pdf" onClick={handleDownload} disabled={downloading}>
+            {downloading ? '⏳ Generating…' : '⬇ Download PDF'}
+          </button>
+          <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
+            {printing ? '⏳ Preparing…' : '🖨 Print'}
+          </button>
+        </div>
+      </div>
 
       {/* ── Profile card with header ── */}
       <div className="card" id="userProfileCard">
