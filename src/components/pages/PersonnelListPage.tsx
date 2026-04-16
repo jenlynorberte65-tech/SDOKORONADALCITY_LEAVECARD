@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { StatBox, isCardUpdatedThisMonth, currentMonthLabel } from '@/components/StatsRow';
 import RegisterModal from '@/components/modals/RegisterModal';
@@ -9,141 +9,6 @@ import type { Personnel } from '@/types';
 
 interface Props { onOpenCard: (id: string) => void; }
 
-// ── Pagination ─────────────────────────────────────────────────────────────────
-const PAGE_SIZE = 10;
-
-interface PaginationProps {
-  page: number; total: number; pageSize: number; onChange: (p: number) => void;
-}
-function Pagination({ page, total, pageSize, onChange }: PaginationProps) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  if (totalPages <= 1) return null;
-  const btnStyle = (disabled: boolean): React.CSSProperties => ({
-    padding:'4px 10px', borderRadius:6,
-    border:'1.5px solid var(--br)', background:'transparent',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.4 : 1,
-    fontSize:13, color:'var(--cha)', lineHeight:1,
-  });
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--mu)', userSelect:'none' }}>
-      <span>Page {page} of {totalPages}</span>
-      <button style={btnStyle(page <= 1)}         onClick={() => onChange(page - 1)} disabled={page <= 1}>›</button>
-      <button style={btnStyle(page >= totalPages)} onClick={() => onChange(totalPages)} disabled={page >= totalPages}>»</button>
-    </div>
-  );
-}
-
-// ── Category badge style ───────────────────────────────────────────────────────
-function categoryBadgeStyle(status: string): React.CSSProperties {
-  const s = (status ?? '').toLowerCase();
-  if (s === 'teaching')
-    return { background:'#ddeeff', color:'var(--nb, #1a56db)', border:'1px solid #bfdbfe' };
-  if (s === 'teaching related')
-    return { background:'#ede9fe', color:'#5b21b6', border:'1px solid #ddd6fe' };
-  return { background:'var(--g4,#f3f4f6)', color:'var(--g1,#374151)', border:'1px solid var(--br,#e5e7eb)' };
-}
-
-// ── Single employee card ───────────────────────────────────────────────────────
-interface EmpCardProps {
-  e: Personnel;
-  onOpenCard: (id: string) => void;
-  onEdit: (e: Personnel) => void;
-  isTeaching: boolean;
-  upd: boolean;
-  dispatch: ReturnType<typeof useAppStore>['dispatch'];
-}
-function EmpCard({ e, onOpenCard, onEdit, isTeaching, upd, dispatch }: EmpCardProps) {
-  const isInactive = e.account_status === 'inactive';
-  const fullName   = `${(e.surname || '').toUpperCase()}, ${e.given || ''}${e.suffix ? ' ' + e.suffix : ''}`;
-
-  function handleOpenCard() {
-    const page = isTeaching ? 't' : 'nt';
-    dispatch({ type:'SET_CUR_ID', payload: e.id });
-    dispatch({ type:'SET_PAGE',   payload: page });
-    try {
-      const raw = sessionStorage.getItem('deped_session');
-      if (raw) {
-        const s = JSON.parse(raw);
-        sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: e.id, page }));
-      }
-    } catch { /* ignore */ }
-    onOpenCard(e.id);
-  }
-
-  return (
-    <div
-      style={{
-        display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
-        padding:'9px 14px', borderRadius:8,
-        border:'1.5px solid var(--br,#e5e7eb)',
-        background: isInactive ? 'var(--g4,#f9fafb)' : 'var(--cd,#fff)',
-        fontFamily:'Inter,sans-serif', fontSize:12,
-        opacity: isInactive ? 0.6 : 1,
-        transition:'border-color .15s',
-      }}
-    >
-      {/* Category badge */}
-      <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700, whiteSpace:'nowrap', flexShrink:0, ...categoryBadgeStyle(e.status ?? '') }}>
-        {e.status || '—'}
-      </span>
-
-      {/* Name — clickable to open card */}
-      <button
-        onClick={handleOpenCard}
-        style={{
-          background:'none', border:'none', padding:0, cursor:'pointer',
-          fontWeight:700, color: isInactive ? '#6b7280' : 'var(--cha)',
-          fontSize:12, fontFamily:'Inter,sans-serif',
-          flexGrow:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis',
-          whiteSpace:'nowrap', textAlign:'left',
-        }}
-      >
-        {fullName}
-      </button>
-
-      {/* ID */}
-      <span style={{ fontSize:10, color:'var(--mu)', fontFamily:"'JetBrains Mono',monospace", flexShrink:0 }}>
-        {e.id}
-      </span>
-
-      {/* Card status indicator */}
-      {isInactive ? (
-        <span style={{ fontSize:9, padding:'2px 7px', borderRadius:10, fontWeight:700, background:'#f3f4f6', color:'#6b7280', flexShrink:0 }}>
-          INACTIVE
-        </span>
-      ) : (
-        <span style={{
-          fontSize:9, padding:'2px 7px', borderRadius:10, fontWeight:700, flexShrink:0,
-          background: upd ? '#d1fae5' : '#fee2e2',
-          color:      upd ? '#065f46' : '#9b1c1c',
-        }}>
-          {upd ? '✅' : '⏳'}
-        </span>
-      )}
-
-      {/* Account status */}
-      <span style={{
-        fontSize:9, padding:'2px 7px', borderRadius:10, fontWeight:700, flexShrink:0,
-        background: isInactive ? '#fee2e2' : '#d1fae5',
-        color:      isInactive ? '#9b1c1c' : '#065f46',
-      }}>
-        {isInactive ? '🔴 Inactive' : '🟢 Active'}
-      </span>
-
-      {/* Edit button */}
-      <button
-        className="btn b-amb no-print"
-        style={{ height:30, padding:'0 14px', fontSize:11, flexShrink:0 }}
-        onClick={() => onEdit(e)}
-      >
-        ✏ Edit
-      </button>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────────────────────────
 export default function PersonnelListPage({ onOpenCard }: Props) {
   const { state, dispatch } = useAppStore();
   const [search, setSearch]   = useState('');
@@ -152,23 +17,28 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
   const [fSch, setFSch]       = useState('');
   const [fCard, setFCard]     = useState('');
   const [fAcct, setFAcct]     = useState('');
-  const [page, setPage]       = useState(1);
   const [regOpen, setRegOpen] = useState(false);
   const [editEmp, setEditEmp] = useState<Personnel | null>(null);
   const [cardStatusOpen, setCardStatusOpen] = useState(false);
 
-  const all        = useMemo(() => state.db, [state.db]);
+  // All employees — inactive are still shown in the list
+  const all = useMemo(() => state.db, [state.db]);
+
+  // Only ACTIVE employees are counted in the dashboard stats
   const activeOnly = useMemo(() => all.filter(e => e.account_status !== 'inactive'), [all]);
 
   const positions = useMemo(() => [...new Set(all.map(e => (e.pos    || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
   const schools   = useMemo(() => [...new Set(all.map(e => (e.school || '').trim().toUpperCase()).filter(Boolean))].sort(), [all]);
 
-  const monthLabel           = currentMonthLabel();
-  const teachingCount        = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
-  const nonTeachingCount     = all.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length;
-  const teachingRelatedCount = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length;
-  const updatedCount         = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length;
-  const notUpdatedCount      = activeOnly.length - updatedCount;
+  const monthLabel       = currentMonthLabel();
+ // ✅ After — counts ALL employees (active + inactive)
+const teachingCount        = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching').length;
+const nonTeachingCount     = all.filter(e => (e.status ?? '').toLowerCase() === 'non-teaching').length;
+const teachingRelatedCount = all.filter(e => (e.status ?? '').toLowerCase() === 'teaching related').length;
+
+  // ✅ FIX: pass lastEditedAt so the primary check in isCardUpdatedThisMonth works
+  const updatedCount    = activeOnly.filter(e => isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt)).length;
+  const notUpdatedCount = activeOnly.length - updatedCount;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -182,6 +52,7 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
       if (fSch && (e.school || '').trim().toUpperCase() !== fSch) return false;
       if (fCard) {
         if (e.account_status === 'inactive') return false;
+        // ✅ FIX: pass lastEditedAt here too
         const upd = isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
         if (fCard === 'updated' && !upd) return false;
         if (fCard === 'pending' &&  upd) return false;
@@ -190,42 +61,36 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
     }).sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
   }, [all, search, fCat, fPos, fSch, fCard, fAcct]);
 
-  // Reset page on filter/search change
-  useEffect(() => { setPage(1); }, [search, fCat, fPos, fSch, fCard, fAcct]);
-
-  // Paginate
-  const paginated = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
-
+  // ── After any save (new or edit), re-fetch the full DB from the server.
+  //    This ensures account_status changes (and all other edits) are
+  //    immediately reflected in state and survive a page refresh,
+  //    because the source of truth is always the DB — not the modal form data.
   async function handleSaved(_emp: Personnel, isNew: boolean) {
     const res = await apiCall('get_personnel', {}, 'GET');
     if (res.ok && res.data) {
       dispatch({ type: 'SET_DB', payload: res.data });
     } else {
+      // Fallback to optimistic update if re-fetch fails
       if (isNew) {
         dispatch({ type: 'ADD_EMPLOYEE', payload: _emp });
       } else {
-        dispatch({ type: 'UPDATE_EMPLOYEE', payload: { employee: _emp, originalId: editEmp?.id ?? _emp.id } });
+        dispatch({
+          type: 'UPDATE_EMPLOYEE',
+          payload: { employee: _emp, originalId: editEmp?.id ?? _emp.id },
+        });
       }
     }
     setRegOpen(false);
     setEditEmp(null);
   }
 
-  function handleEdit(e: Personnel) {
-    setEditEmp(e);
-    setRegOpen(true);
-  }
-
   return (
     <>
       {/* ── Dashboard Stats ── */}
       <div className="stats-row no-print">
-        <StatBox icon="👥"
-          value={all.length}
-          label="Total Personnel" />
+       <StatBox icon="👥" 
+         value={all.length} 
+         label="Total Personnel" />
         <StatBox icon="📚" iconClass="si-b"
           value={teachingCount}
           label="Teaching" />
@@ -236,24 +101,23 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
           value={teachingRelatedCount}
           label="Teaching Related" />
         <StatBox icon="✅"
-          iconStyle={{ background:'#d1fae5' }}
+          iconStyle={{ background: '#d1fae5' }}
           value={updatedCount}
           label={`Updated (${monthLabel})`}
-          valueStyle={{ color:'#065f46' }}
-          style={{ borderColor:'var(--g3)', cursor:'pointer' }}
+          valueStyle={{ color: '#065f46' }}
+          style={{ borderColor: 'var(--g3)', cursor: 'pointer' }}
           onClick={() => setCardStatusOpen(true)} />
         <StatBox icon="⏳"
-          iconStyle={{ background:'#fee2e2' }}
+          iconStyle={{ background: '#fee2e2' }}
           value={notUpdatedCount}
           label="Not Yet Updated"
-          valueStyle={{ color:'#c53030' }}
-          style={{ borderColor:'#e53e3e', cursor:'pointer' }}
+          valueStyle={{ color: '#c53030' }}
+          style={{ borderColor: '#e53e3e', cursor: 'pointer' }}
           onClick={() => setCardStatusOpen(true)} />
       </div>
 
       <div className="card">
         <div className="ch grn">👥 Personnel Registry</div>
-
         <div className="toolbar no-print">
           <div className="toolbar-left">
             <button className="btn b-grn" onClick={() => { setEditEmp(null); setRegOpen(true); }}>
@@ -262,8 +126,10 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
             <div className="srch">
               <span className="sri">🔍</span>
               <input
-                type="text" placeholder="Search name or ID…"
-                value={search} onChange={e => setSearch(e.target.value)}
+                type="text"
+                placeholder="Search name or ID…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
               />
             </div>
           </div>
@@ -300,42 +166,105 @@ export default function PersonnelListPage({ onOpenCard }: Props) {
           </div>
         </div>
 
-        {/* ── Card Grid ── */}
-        <div style={{ padding:'12px 16px 8px' }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding:'16px 4px', color:'var(--mu)', fontStyle:'italic', fontSize:13 }}>
-              No personnel found.
-            </div>
-          ) : (
-            <>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:6 }}>
-                {paginated.map(e => {
-                  const isTeaching = (e.status ?? '').toLowerCase() === 'teaching';
-                  const isInactive = e.account_status === 'inactive';
-                  const upd        = isInactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
-                  return (
-                    <EmpCard
-                      key={e.id}
-                      e={e}
-                      onOpenCard={onOpenCard}
-                      onEdit={handleEdit}
-                      isTeaching={isTeaching}
-                      upd={upd}
-                      dispatch={dispatch}
-                    />
-                  );
-                })}
-              </div>
+        <div className="tw" style={{ maxHeight: 'none' }}>
+          <table style={{ borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ height: 44, width: '9%',  fontSize: 12, textAlign: 'center' }}>Employee ID</th>
+                <th style={{ width: '20%', fontSize: 12, textAlign: 'center' }}>Full Name</th>
+                <th style={{ width: '9%',  fontSize: 12, textAlign: 'center' }}>Category</th>
+                <th style={{ width: '14%', fontSize: 12, textAlign: 'center' }}>Position</th>
+                <th style={{ width: '16%', fontSize: 12, textAlign: 'center' }}>School / Office</th>
+                <th style={{ width: '9%',  fontSize: 12, textAlign: 'center' }}>Card Status</th>
+                <th style={{ width: '9%',  fontSize: 12, textAlign: 'center' }}>Account</th>
+                <th className="no-print" style={{ width: '14%', fontSize: 12, textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--mu)', fontStyle: 'italic' }}>
+                    No personnel found.
+                  </td>
+                </tr>
+              ) : filtered.map(e => {
+                const isT      = (e.status ?? '').toLowerCase() === 'teaching';
+                const inactive = e.account_status === 'inactive';
+                // ✅ FIX: pass lastEditedAt so badge reflects DB value correctly
+                const upd      = inactive ? false : isCardUpdatedThisMonth(e.records ?? [], e.status ?? '', e.lastEditedAt);
 
-              {/* Footer: count + pagination */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0 4px', flexWrap:'wrap', gap:8 }}>
-                <span style={{ fontSize:12, color:'var(--mu)' }}>
-                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} employee{filtered.length !== 1 ? 's' : ''}
-                </span>
-                <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
-              </div>
-            </>
-          )}
+                return (
+                  <tr key={e.id} style={inactive ? { opacity: 0.6 } : {}}>
+                    <td style={{ textAlign: 'center' }}>
+                      <b style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{e.id}</b>
+                    </td>
+                    <td style={{ textAlign: 'left', fontWeight: 600, paddingLeft: 10 }}>
+                      <button
+                        className="btn"
+                        style={{
+                          background: 'none', border: 'none', padding: 0,
+                          cursor: 'pointer', fontWeight: 600, color: 'var(--cha)',
+                          textAlign: 'left', height: 'auto',
+                          textTransform: 'none', letterSpacing: 0,
+                        }}
+                        onClick={() => {
+                          const page = isT ? 't' : 'nt';
+                          dispatch({ type: 'SET_CUR_ID', payload: e.id });
+                          dispatch({ type: 'SET_PAGE',   payload: page });
+                          try {
+                            const raw = sessionStorage.getItem('deped_session');
+                            if (raw) {
+                              const s = JSON.parse(raw);
+                              sessionStorage.setItem('deped_session', JSON.stringify({ ...s, curId: e.id, page }));
+                            }
+                          } catch { /* ignore */ }
+                          onOpenCard(e.id);
+                        }}>
+                        {(e.surname || '').toUpperCase()}, {e.given || ''} {e.suffix || ''}
+                      </button>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${isT ? 'bt' : 'bnt'}`}>{e.status}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{(e.pos    || '').toUpperCase()}</td>
+                    <td style={{ textAlign: 'center' }}>{(e.school || '').toUpperCase()}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {inactive ? (
+                        <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700, background: '#f3f4f6', color: '#6b7280' }}>
+                          — N/A
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                          background: upd ? '#d1fae5' : '#fee2e2',
+                          color:      upd ? '#065f46' : '#9b1c1c',
+                        }}>
+                          {upd ? '✅ Updated' : '⏳ Pending'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                        background: inactive ? '#fee2e2' : '#d1fae5',
+                        color:      inactive ? '#9b1c1c' : '#065f46',
+                      }}>
+                        {inactive ? '🔴 Inactive' : '🟢 Active'}
+                      </span>
+                    </td>
+                    <td className="no-print" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <button
+                        className="btn b-amb"
+                        style={{ height: 34, padding: '0 18px', fontSize: 12 }}
+                        onClick={() => { setEditEmp(e); setRegOpen(true); }}>
+                        ✏ Edit
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
