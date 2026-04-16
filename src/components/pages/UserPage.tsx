@@ -261,7 +261,7 @@ export default function UserPage({ onLogout }: Props) {
       {printing ? '⏳ Preparing…' : '🖨 Print'}
     </button>
   </div>
-</div>
+
       {/* ── Profile card with header ── */}
       <div className="card" id="userProfileCard">
         <div style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 20px 10px', borderBottom:'2px solid var(--g2)', background:'linear-gradient(90deg,var(--g0),var(--g1))' }}>
