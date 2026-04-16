@@ -83,13 +83,13 @@ export default function App() {
 
         } else if (s.isAdmin) {
           dispatch({
-            type: 'LOGIN_ADMIN',
-            payload: {
-              name:      s.isEncoder ? 'Encoder' : 'Administrator',
-              loginId:   '',
-              isEncoder: s.isEncoder || false,
-            },
-          });
+  type: 'LOGIN_ADMIN',
+  payload: {
+    name:      s.adminName || (s.isEncoder ? 'Encoder' : 'Administrator'),
+    loginId:   s.loginId   || '',
+    isEncoder: s.isEncoder || false,
+  },
+});
           apiCall('get_admin_cfg', {}, 'GET').then(res => {
             if (res.ok)
               dispatch({
