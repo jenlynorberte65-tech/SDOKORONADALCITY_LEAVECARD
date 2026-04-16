@@ -36,34 +36,29 @@ export function currentMonthLabel(): string {
 }
 
 // ── Internal date parser ──────────────────────────────────────
-// Parses ISO (YYYY-MM-DD), MM/DD/YYYY, or natural-language strings (e.g. "April 2025").
-// Returns a Date anchored to the 1st of the parsed month, or null if unparseable.
+// Parses ISO (YYYY-MM-DD), MM/DD/YYYY, or natural-language strings
+// (e.g. "April 2025"). Returns a Date or null if unparseable.
 function parseDateForCheck(dateStr: string): Date | null {
   if (!dateStr) return null;
 
-  // ISO format: YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr))
     return new Date(dateStr + 'T00:00:00');
-  }
 
-  // MM/DD/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
     const [mm, , yyyy] = dateStr.split('/');
     return new Date(`${yyyy}-${mm.padStart(2, '0')}-01T00:00:00`);
   }
 
-  // Natural language: extract year + month name (e.g. "April 2025", "January 2026")
-  const yearMatch = dateStr.match(/\b(19\d{2}|20\d{2})\b/);
+  const yearMatch  = dateStr.match(/\b(19\d{2}|20\d{2})\b/);
   const monthNames = [
-    'january', 'february', 'march', 'april', 'may', 'june',
-    'july', 'august', 'september', 'october', 'november', 'december',
+    'january','february','march','april','may','june',
+    'july','august','september','october','november','december',
   ];
   const lower    = dateStr.toLowerCase();
   const monthIdx = monthNames.findIndex(m => lower.includes(m));
 
-  if (yearMatch && monthIdx !== -1) {
+  if (yearMatch && monthIdx !== -1)
     return new Date(parseInt(yearMatch[1]), monthIdx, 1);
-  }
 
   return null;
 }
@@ -71,47 +66,41 @@ function parseDateForCheck(dateStr: string): Date | null {
 /**
  * isCardUpdatedThisMonth
  * ──────────────────────
- * Returns true only when a genuine, current-month entry exists in the
- * employee's records — never based on lastEditedAt, which is too broad.
+ * Determines whether an employee's leave card has been properly updated
+ * for the current month. Rules:
  *
  * Teaching:
- *   → true  when records contains at least one non-conversion entry
- *            whose `from`, `to`, OR `prd` date falls in the current month/year.
- *            (prd fallback handles entries where only the period label is set)
- *   → false for zero records (new employee) or no current-month entries.
+ *   → true  when at least one non-conversion entry has a from/to/prd
+ *            date that falls in the current month & year.
+ *   → false for zero records or no current-month entry.
  *
  * Non-Teaching / Teaching-Related:
- *   → true  when records contains a Monthly Accrual (or Service Credit)
- *            entry whose date falls in the current month/year.
- *   → false if accrual has not yet been posted for this month.
+ *   → true  ONLY when a "Monthly Accrual" (or "Service Credit") entry
+ *            exists whose date falls in the current month & year.
+ *            Any other entry (vacation, sick, profile edit, etc.) does
+ *            NOT count as "updated" for NT/TR employees.
+ *   → false if the monthly accrual has not been posted yet.
  */
 export function isCardUpdatedThisMonth(
   records: LeaveRecord[],
   empStatus: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  lastEditedAt?: string | null,   // retained for API compat — NOT used for logic
+  lastEditedAt?: string | null,
 ): boolean {
   const now      = new Date();
   const thisYear = now.getFullYear();
   const thisMon  = now.getMonth(); // 0-indexed
 
-  // No records loaded yet → always "not yet updated"
   if (!records || records.length === 0) return false;
 
   const category = (empStatus ?? '').toLowerCase();
 
-  // ── Teaching ────────────────────────────────────────────────────────────
-  // A Teaching employee is "updated" when at least one leave entry (not a
-  // conversion marker) has a from/to/prd date that falls in the current month.
-  //
-  // FIX: also check `r.prd` — some Teaching entries are saved with only the
-  // period label filled (e.g. "April 2025") and no explicit from/to dates.
-  // Without this fallback those employees always showed "Not Yet Updated"
-  // even after data was entered in their leave card.
+  // ── Teaching ─────────────────────────────────────────────
+  // Updated = any real leave entry dated this month
+  // (from / to / prd — whichever the encoder filled in)
   if (category === 'teaching') {
     return records.some(r => {
       if (r._conversion) return false;
-      // Check from, to, and prd — use whichever is present
       const dateStr = r.from || r.to || r.prd || '';
       if (!dateStr) return false;
       const d = parseDateForCheck(dateStr);
@@ -119,28 +108,21 @@ export function isCardUpdatedThisMonth(
     });
   }
 
-  // ── Non-Teaching / Teaching-Related ─────────────────────────────────────
-  // These employees are "updated" only when the monthly accrual (1.25 each)
-  // has been posted for the current month.
+  // ── Non-Teaching / Teaching-Related ──────────────────────
+  // Updated = Monthly Accrual (or Service Credit) posted this month.
+  // Vacation leave, sick leave, profile saves, etc. do NOT satisfy this.
   return records.some(r => {
     if (r._conversion) return false;
-
     const action = (r.action ?? '').toLowerCase();
     if (!action.includes('accrual') && !action.includes('service credit')) return false;
-
-    // Match against from, to, or prd (period label) — whichever is set.
     const dateStr = r.from || r.to || r.prd || '';
     if (!dateStr) return false;
-
     const d = parseDateForCheck(dateStr);
     return !!d && d.getFullYear() === thisYear && d.getMonth() === thisMon;
   });
 }
 
-/**
- * @deprecated Use isCardUpdatedThisMonth(records, empStatus) directly.
- * lastEditedAt alone is not a reliable indicator of a current-month card update.
- */
+/** @deprecated Use isCardUpdatedThisMonth(records, empStatus) directly. */
 export function isUpdatedThisMonth(lastEditedAt: string | null | undefined): boolean {
   void lastEditedAt;
   return false;
