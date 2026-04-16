@@ -237,8 +237,9 @@ export default function UserPage({ onLogout }: Props) {
   }
 
   return (
-    {showLogout && <LogoutModal onClose={() => setShowLogout(false)} />}
+    
     <div>
+      {showLogout && <LogoutModal onClose={() => setShowLogout(false)} />}
       {/* ── Action bar ── */}
       <div className="user-action-bar no-print" style={{
   display: 'flex', justifyContent: 'space-between',
@@ -260,7 +261,7 @@ export default function UserPage({ onLogout }: Props) {
     <button className="btn b-prn" onClick={handlePrint} disabled={printing}>
       {printing ? '⏳ Preparing…' : '🖨 Print'}
     </button>
-  </div>
+  </div>   </div>
 
       {/* ── Profile card with header ── */}
       <div className="card" id="userProfileCard">
